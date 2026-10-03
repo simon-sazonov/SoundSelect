@@ -4,6 +4,7 @@ Everything the app does is reachable here first; the web app calls the same func
 """
 
 import json
+import re
 import sys
 from enum import Enum
 from pathlib import Path
@@ -73,6 +74,17 @@ def _read_input(name: str) -> SheetInput:
     if not path.is_file():
         raise FileNotFoundError(f"no file named {name}")
     return SheetInput.from_path(path)
+
+
+def _output_stem(name: str | None, used: set[str]) -> str:
+    """A safe file name for one sheet's outputs, different from the others in the batch."""
+    stem = re.sub(r"[^\w\- ]+", "_", name or "").strip(" ._") or "song"
+    stem = stem[:80]
+    unique, n = stem, 2
+    while unique.lower() in used:
+        unique, n = f"{stem}-{n}", n + 1
+    used.add(unique.lower())
+    return unique
 
 
 def _write_outputs(song: Song, names: str, written: bool, targets: dict[str, Path]) -> bool:
@@ -171,6 +183,7 @@ def sheet(
     view = ViewSettings(instrument=instrument.value)
     written = not concert
     ok = True
+    used: set[str] = set()
     for i, name in enumerate(files):
         try:
             source = _read_input(name)
@@ -185,7 +198,7 @@ def sheet(
             typer.echo(song_text(song, names.value, written=written, chart=len(files) == 1))
         targets = dict(single_targets)
         if out is not None:
-            stem = Path(name).stem if name != "-" else (song.identity.title or "song")
+            stem = _output_stem(Path(name).stem if name != "-" else song.identity.title, used)
             targets.update({fmt: out / f"{stem}.{fmt}" for fmt in chosen})
         ok = _write_outputs(song, names.value, written, targets) and ok
     if not ok:

@@ -7,6 +7,7 @@ correction or an improved step (a new version) re-runs only that step and what c
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import time
@@ -15,7 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, TypeAdapter, ValidationError
 from pydantic_core import to_json
 
 
@@ -61,10 +62,14 @@ class DirCache:
 
 
 def fingerprint_of(value: Any) -> str:
-    """A stable fingerprint for a step input or output."""
-    fp = getattr(value, "fingerprint", None)
-    if callable(fp):
-        return fp("input")
+    """A stable fingerprint for a step input or output.
+
+    An input can choose what it is known by with a ``cache_key()`` method; a sheet input uses
+    its contents, its file name and its kind.
+    """
+    cache_key = getattr(value, "cache_key", None)
+    if callable(cache_key):
+        return cache_key()
     data = value.model_dump_json().encode() if isinstance(value, BaseModel) else to_json(value)
     return hashlib.sha256(data).hexdigest()
 
@@ -142,14 +147,15 @@ class Pipeline:
             started = time.perf_counter()
             saved = cache.get(key) if cache is not None else None
             adapter = self._adapters[step.name]
+            output, cached = None, False
             if saved is not None:
-                output = adapter.validate_python(saved["value"])
-                cached = True
-            else:
+                # an output saved in an older shape fails to load; the step then runs again
+                with contextlib.suppress(ValidationError, KeyError, TypeError):
+                    output, cached = adapter.validate_python(saved["value"]), True
+            if not cached:
                 output = step.run(*(values[n] for n in step.needs))
                 if cache is not None:
                     cache.put(key, {"value": adapter.dump_python(output, mode="json")})
-                cached = False
             values[step.name] = output
             prints[step.name] = fp
             result.outputs[step.name] = output

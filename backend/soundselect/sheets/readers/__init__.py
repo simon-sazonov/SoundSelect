@@ -41,9 +41,20 @@ class SheetInput:
         return self.data.encode("utf-8") if isinstance(self.data, str) else self.data
 
     def fingerprint(self, reader_kind: str) -> str:
+        """The song's identity: the same contents under another name is the same song."""
         h = hashlib.sha256()
         h.update(reader_kind.encode())
         h.update(b"\0")
+        h.update(self.raw)
+        return h.hexdigest()
+
+    def cache_key(self) -> str:
+        """What saved step results are keyed on: the contents, and also the name and kind,
+        since the name becomes the title when the sheet has none."""
+        h = hashlib.sha256()
+        for part in (self.kind or "", self.name or ""):
+            h.update(part.encode())
+            h.update(b"\0")
         h.update(self.raw)
         return h.hexdigest()
 

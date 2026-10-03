@@ -102,10 +102,7 @@ def clean_chord_text(token: str) -> str:
     t = token.strip()
     if t.startswith("(") and t.endswith(")"):
         t = t[1:-1]
-    t = t.rstrip("*!,;")
-    while t.endswith("..."):
-        t = t[:-3]
-    return t.strip()
+    return t.rstrip("*!,;.").strip()
 
 
 def classify_token(text: str) -> TokenKind:

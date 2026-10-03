@@ -101,3 +101,22 @@ def test_capo_moves_shapes_to_sounding_chords(data_dir):
     assert [c.symbol for c in moved.chords()][:4] == ["Bm", "C#m", "D", "F#7"]
     assert any(n.code == "capo" for n in moved.notices)
     assert apply_capo(parsed, capo=0).chords() == parsed.chords()
+
+
+def test_chords_on_a_label_line_keep_their_repeat():
+    sheet = parse_sheet(sort_lines(read_sheet(SheetInput("Intro: C G x2\n\nC   G\nSome words\n"))))
+    intro = sheet.sections[0]
+    assert (intro.kind, intro.label) == ("intro", "Intro")
+    assert [c.symbol for c in intro.lines[0].chords] == ["C", "G"]
+    assert intro.lines[0].repeat == 2
+
+
+def test_punctuation_around_chords():
+    parsed = parse_sheet(sort_lines(read_sheet(SheetInput("(Am)  G/B.  C*  D,  Em...\nwords\n"))))
+    assert [(c.symbol, c.readable) for c in parsed.chords()] == [
+        ("Am", True),
+        ("G/B", True),
+        ("C", True),
+        ("D", True),
+        ("Em", True),
+    ]

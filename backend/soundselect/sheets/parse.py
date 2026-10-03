@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from ..core.chords import parse_chord
 from ..core.song import ChordFix, Notice
-from .lines import clean_chord_text
+from .lines import clean_chord_text, repeat_count
 from .model import ParsedChord, ParsedLine, ParsedSection, ParsedSheet, SortedSheet, Token
 
 VERSION = "1"
@@ -43,10 +43,16 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
             sections.append(
                 ParsedSection(kind=line.section or "other", label=line.label, repeat=line.repeat)
             )
-            if line.tokens:
+            if line.tokens:  # chords on the label line itself: "Intro: C G x2"
+                repeat = next(
+                    (repeat_count(t.text) for t in line.tokens if t.kind == "repeat"), None
+                )
                 sections[-1].lines.append(
                     ParsedLine(
-                        chords=_chords(line.tokens, uses_h), index=line.index, source=line.source
+                        chords=_chords(line.tokens, uses_h),
+                        repeat=repeat,
+                        index=line.index,
+                        source=line.source,
                     )
                 )
         elif line.kind == "chords":

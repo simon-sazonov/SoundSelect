@@ -95,3 +95,34 @@ def test_info_commands(tmp_path):
     assert "си-бемоль" in runner.invoke(app, ["names"]).output
     schema = runner.invoke(app, ["schema"])
     assert json.loads(schema.output)["title"] == "Song"
+
+
+def test_batch_names_stay_inside_the_folder_and_apart(tmp_path):
+    first, second = tmp_path / "a", tmp_path / "b"
+    first.mkdir()
+    second.mkdir()
+    for folder in (first, second):
+        (folder / "song.txt").write_text("C  G  Am  F\nwords\n", encoding="utf-8")
+    out = tmp_path / "out"
+    result = runner.invoke(
+        app,
+        [
+            "sheet",
+            str(first / "song.txt"),
+            str(second / "song.txt"),
+            "--out",
+            str(out),
+            "-f",
+            "txt",
+            "-q",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    assert sorted(p.name for p in out.iterdir()) == ["song-2.txt", "song.txt"]
+    pasted = runner.invoke(
+        app,
+        ["sheet", "-", "--out", str(out), "-f", "txt", "-q"],
+        input="../../Evil/Name\nC  G\nla la\n",
+    )
+    assert pasted.exit_code == 0, pasted.output
+    assert all(p.parent == out for p in out.iterdir())

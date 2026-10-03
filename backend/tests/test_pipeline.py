@@ -68,3 +68,26 @@ def test_pasted_text():
     song = analyze_sheet("Am F C G\nSome words here")
     assert song.identity.source == "text"
     assert [c.symbol for c in song.chords] == ["Am", "F", "C", "G"]
+
+
+def test_same_contents_under_another_name_is_read_again(tmp_path):
+    text = b"C   G   Am   F\nwords go here\n"
+    cache = MemoryCache()
+    first = run_chord_sheet(SheetInput(text, "first.txt"), cache=cache)
+    second = run_chord_sheet(SheetInput(text, "second.txt"), cache=cache)
+    assert "read" in second.ran
+    assert first["view"].identity.title == "first"
+    assert second["view"].identity.title == "second"
+    # the song itself is recognized as the same one
+    assert first["view"].identity.fingerprint == second["view"].identity.fingerprint
+
+
+def test_an_unreadable_saved_output_is_made_again(data_dir):
+    cache = MemoryCache()
+    run_chord_sheet(source(data_dir), cache=cache)
+    for key in cache.items:
+        if key.startswith("chord_sheet/key/"):
+            cache.items[key] = {"value": {"not": "a key result"}}
+    again = run_chord_sheet(source(data_dir), cache=cache)
+    assert again.ran == ["key"]
+    assert again["key"].concert.tonic == "Bb"
