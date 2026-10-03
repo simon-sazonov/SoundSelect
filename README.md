@@ -9,3 +9,47 @@ Three tools share one music core:
 - **Sheet music from videos.** Screenshots of a sheet-music video, or its link, become full pages and a clean PDF in concert pitch and for alto.
 
 The full system plan (phases, the Song result, the API) is in the project's plan document. Each build phase arrives as a pull request.
+
+## What works now (Phase 0)
+
+The music core and the chord sheet tool, from the command line. A text or ChordPro chord sheet goes in; out comes the key (concert and for alto), the key's pentatonic on the staff, the other scales, every chord rewritten for alto with a scale to play over it, and the chord chart. It all lands on one page that also prints to PDF.
+
+## Running it
+
+You need [uv](https://docs.astral.sh/uv/) (it installs Python 3.11 by itself). For PDFs you also need the Pango library: `brew install pango` on a Mac.
+
+```sh
+uv sync
+uv run soundselect sheet song.txt                        # key, your pentatonic, chords for alto, the chart
+uv run soundselect sheet song.txt --html song.html --pdf song.pdf
+uv run soundselect sheet *.txt --out pages/              # a batch: a page and a PDF for each sheet
+uv run soundselect chords Am F C G                       # just a list of chords
+uv run soundselect sheet song.txt --key "ля минор"       # when the key guess is wrong
+uv run soundselect sheet song.txt --names letters        # letters instead of до, ре, ми
+```
+
+Other options: `--instrument` (alto_sax, tenor_sax, soprano_sax, baritone_sax, concert), `--names` (russian, letters, both, solfege, german, none), `--capo`, `--concert` for concert pitch, `--json` for the full Song result and `--musicxml` for the staves. `uv run soundselect --help` lists everything.
+
+## Layout
+
+```
+backend/soundselect/
+  core/        the music core: pitches, keys, chords, scales, instruments, note names, the Song result
+  sheets/      chord sheets: readers per input kind, line sorting, chord parsing, capo, key
+  pipeline/    the step runner with saved outputs, and the chord sheet pipeline
+  render/      MusicXML, staff drawing (Verovio), chord chart, song page, PDF, text
+  cli.py       the command line
+  api/ jobs/ store/      Phase 1: web API, background jobs, library
+  sheetmusic/            Phase 3: sheet music from screenshots and videos
+  audio/                 Phase 4: songs from links and audio files
+backend/tests/ tests, with sample sheets in tests/data/
+docs/          song.schema.json (the Song result, the contract with the front end) and decisions.md
+```
+
+## Checks
+
+```sh
+uv run ruff check . && uv run ruff format --check . && uv run pytest
+```
+
+After changing the Song model, regenerate its schema with `uv run soundselect schema --out docs/song.schema.json`.
