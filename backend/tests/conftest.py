@@ -28,3 +28,30 @@ def found_a_love() -> Song:
 @pytest.fixture
 def russian_song() -> Song:
     return _song("russian_h.txt")
+
+
+@pytest.fixture
+def sheet_text() -> str:
+    """The sample sheet as pasted text."""
+    return (DATA / "found_a_love.txt").read_text(encoding="utf-8")
+
+
+@pytest.fixture
+def library(tmp_path):
+    """An empty library in a folder of its own."""
+    from soundselect.store import Library
+
+    return Library(tmp_path / "library")
+
+
+@pytest.fixture
+def client(tmp_path):
+    """The web app on an empty library; each job runs at once, inside the request."""
+    from fastapi.testclient import TestClient
+
+    from soundselect.api import create_app
+
+    with TestClient(
+        create_app(tmp_path / "library", immediate=True, allowed_hosts=["testserver"])
+    ) as test_client:
+        yield test_client

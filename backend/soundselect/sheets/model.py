@@ -22,6 +22,7 @@ class SheetText(Model):
     source_name: str | None = None
     fingerprint: str
     pages: list[SourcePage] = Field(default_factory=list)
+    notices: list[Notice] = Field(default_factory=list, description="What the reader skipped.")
 
 
 TokenKind = Literal["chord", "nc", "repeat", "bar", "other"]

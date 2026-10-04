@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Working · SoundSelect{% endblock %}
+{% block style %}
+  .jobs { list-style: none; margin: 0; padding: 0; }
+  .jobs li { padding: 12px 4px; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; }
+  .jobs li:first-child { border-top: 0; }
+  .jobs .name { font-weight: 650; overflow-wrap: anywhere; }
+  .jobs .state { color: var(--muted); white-space: nowrap; }
+  .jobs .state.done { color: #1d7a3a; font-weight: 650; }
+  .jobs .state.failed { color: var(--clash); font-weight: 650; }
+  .jobs .error { grid-column: 1 / -1; font-weight: 400; }
+  .bar { grid-column: 1 / -1; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .bar span { display: block; height: 100%; background: var(--brass-light); transition: width .2s; }
+{% endblock %}
+{% block main %}
+<h1 id="heading">{% if batch.status == "done" %}Done{% else %}Working on it…{% endif %}</h1>
+<div class="card">
+<ul class="jobs" id="jobs">
+{% for job in batch.jobs %}
+  <li data-id="{{ job.id }}">
+    <span class="name">{% if job.song_id %}<a href="/songs/{{ job.song_id }}{{ song_query }}">{{ job.name }}</a>{% else %}{{ job.name }}{% endif %}</span>
+    <span class="state {{ job.status }}">{% if job.status == "done" %}{% if job.reused %}Already in your library{% else %}Ready{% endif %}{% elif job.status == "failed" %}Couldn't read it{% elif job.step_label %}{{ job.step_label }}…{% else %}Waiting…{% endif %}</span>
+    {% if job.status in ("queued", "running") %}<div class="bar"><span style="width: {{ (job.progress * 100) | round }}%"></span></div>{% endif %}
+    {% if job.error %}<span class="error">{{ job.error }}</span>{% endif %}
+  </li>
+{% endfor %}
+</ul>
+</div>
+<p id="after"{% if batch.status != "done" or batch.done < 2 %} hidden{% endif %} style="margin-top: 16px">
+  <a class="button brass" href="/api/v1/batches/{{ batch.id }}/songbook">Songbook PDF</a>
+  <a class="button quiet" href="/library">Library</a>
+</p>
+{% endblock %}
+{% block script %}
+<script>
+const batchId = {{ batch.id | tojson }};
+const finished = {{ (batch.status == "done") | tojson }};
+const songQuery = {{ song_query | tojson }};
+const jobs = {};
+function render(job) {
+  const li = document.querySelector(`li[data-id="${job.id}"]`);
+  if (!li) return;
+  jobs[job.id] = job;
+  const name = li.querySelector(".name");
+  name.innerHTML = "";
+  const label = document.createTextNode(job.name);
+  if (job.song_id) { const a = document.createElement("a"); a.href = "/songs/" + job.song_id + songQuery; a.append(label); name.append(a); }
+  else name.append(label);
+  const state = li.querySelector(".state");
+  state.className = "state " + job.status;
+  state.textContent = job.status === "done" ? (job.reused ? "Already in your library" : "Ready")
+    : job.status === "failed" ? "Couldn't read it" : (job.step_label ? job.step_label + "…" : "Waiting…");
+  const bar = li.querySelector(".bar span");
+  if (bar) { if (job.status === "queued" || job.status === "running") bar.style.width = Math.round(job.progress * 100) + "%"; else bar.parentElement.remove(); }
+  if (job.error && !li.querySelector(".error")) { const e = document.createElement("span"); e.className = "error"; e.textContent = job.error; li.append(e); }
+}
+function done() {
+  const all = Object.values(jobs);
+  const ready = all.filter(j => j.status === "done");
+  document.getElementById("heading").textContent = "Done";
+  if (all.length === 1 && ready.length === 1) { location.replace("/songs/" + ready[0].song_id + songQuery); return; }
+  if (ready.length > 1) document.getElementById("after").hidden = false;
+}
+if (!finished) {
+  const events = new EventSource(`/api/v1/batches/${batchId}/events`);
+  events.addEventListener("job", (e) => render(JSON.parse(e.data)));
+  events.addEventListener("end", () => { events.close(); done(); });
+} else {
+  {% for job in batch.jobs %}jobs[{{ job.id | tojson }}] = {{ job.model_dump(mode="json") | tojson }};
+  {% endfor %}
+  const all = Object.values(jobs);
+  if (all.length === 1 && all[0].status === "done" && !document.referrer.includes("/songs/")) location.replace("/songs/" + all[0].song_id + songQuery);
+}
+</script>
+{% endblock %}

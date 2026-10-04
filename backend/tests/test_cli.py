@@ -126,3 +126,64 @@ def test_batch_names_stay_inside_the_folder_and_apart(tmp_path):
     )
     assert pasted.exit_code == 0, pasted.output
     assert all(p.parent == out for p in out.iterdir())
+
+
+def test_library_commands(data_dir, tmp_path):
+    home = ["--home", str(tmp_path / "lib")]
+    empty = runner.invoke(app, ["songs", *home])
+    assert empty.exit_code == 0 and "The library is empty." in empty.output
+    added = runner.invoke(
+        app,
+        ["add", str(data_dir / "found_a_love.txt"), str(data_dir / "pdf" / "scanned.pdf"), *home],
+    )
+    assert added.exit_code == 1  # one of the two couldn't be read
+    assert "I Found a Love — Test Band  ·  соль мажор  ·  соль ля си ре ми" in added.output
+    assert "scanned.pdf: This PDF is a scan" in added.output
+    again = runner.invoke(app, ["add", str(data_dir / "found_a_love.txt"), *home])
+    assert again.exit_code == 0 and "(already in the library)" in again.output
+    pasted = runner.invoke(app, ["add", "-", "--key", "C", "--title", "Mine", *home], input="C G\n")
+    assert pasted.exit_code == 0 and "Mine  ·  ля мажор" in pasted.output
+    listed = runner.invoke(app, ["songs", *home])
+    assert listed.output.index("Mine") < listed.output.index("I Found a Love")  # newest first
+    found = runner.invoke(app, ["songs", "love", "--limit", "1", *home])
+    assert "Mine" not in found.output and "I Found a Love" in found.output
+    assert "No songs found." in runner.invoke(app, ["songs", "zzz", *home]).output
+    tenor = runner.invoke(app, ["add", str(data_dir / "river_song.cho"), "-i", "tenor_sax", *home])
+    assert tenor.exit_code == 0 and "ми мажор" in tenor.output  # D major for tenor is E major
+
+
+def test_add_errors(data_dir, tmp_path):
+    home = ["--home", str(tmp_path / "lib")]
+    assert runner.invoke(app, ["add", str(tmp_path / "nope.txt"), *home]).exit_code == 2
+    two = [str(data_dir / "found_a_love.txt"), str(data_dir / "river_song.cho")]
+    assert runner.invoke(app, ["add", *two, "--title", "x", *home]).exit_code == 2
+    unknown = runner.invoke(app, ["add", two[0], "-i", "kazoo", *home])
+    assert unknown.exit_code == 1 and "Unknown instrument" in unknown.output
+
+
+def test_openapi_command(tmp_path):
+    out = tmp_path / "openapi.json"
+    assert runner.invoke(app, ["openapi", "--out", str(out)]).exit_code == 0
+    spec = json.loads(out.read_text(encoding="utf-8"))
+    assert "/api/v1/imports" in spec["paths"]
+
+
+def test_serve_and_worker_commands(tmp_path, monkeypatch):
+    import uvicorn
+
+    from soundselect.jobs import JobQueue
+
+    started = {}
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: started.update(app=app, **kw))
+    result = runner.invoke(app, ["serve", "--home", str(tmp_path), "--port", "9000"])
+    assert result.exit_code == 0, result.output
+    assert (started["host"], started["port"]) == ("127.0.0.1", 9000)
+    assert started["app"].state.library.home == tmp_path
+    assert "anyone who can reach this computer" not in result.output
+    shared = runner.invoke(app, ["serve", "--home", str(tmp_path), "--host", "0.0.0.0"])
+    assert "anyone who can reach this computer" in shared.output
+
+    ran = {}
+    monkeypatch.setattr(JobQueue, "run_forever", lambda self, workers: ran.update(n=workers))
+    assert runner.invoke(app, ["worker", "--home", str(tmp_path), "--workers", "3"]).exit_code == 0
+    assert ran == {"n": 3}

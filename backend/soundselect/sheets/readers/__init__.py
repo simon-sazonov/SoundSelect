@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
@@ -94,4 +94,32 @@ def read_sheet(inp: SheetInput) -> SheetText:
     return reader(inp)
 
 
-from . import text  # noqa: E402,F401  (registers the text reader)
+# Source pages: the kinds of input that have pages a screen can show beside the reading.
+PageCount = Callable[[bytes], int]
+PageRender = Callable[[bytes, int], bytes]  # file bytes and page index -> PNG
+PAGES: dict[str, tuple[PageCount, PageRender]] = {}
+
+
+def register_pages(kind: str, count: PageCount, render: PageRender) -> None:
+    PAGES[kind] = (count, render)
+
+
+def render_source_page(parts: Sequence[tuple[str, bytes]], index: int) -> bytes:
+    """Page ``index`` of a song's inputs as a PNG. Pages run across the parts in order: a
+    two-page PDF then a photo gives pages 0, 1 and 2. Parts of a kind without pages count as
+    none."""
+    paged = [(PAGES[kind], data) for kind, data in parts if kind in PAGES]
+    if not paged:
+        raise UnsupportedInput("these inputs have no pages to show")
+    if index < 0:
+        raise IndexError(f"no page {index + 1}")
+    at = index
+    for (count, render), data in paged:
+        n = count(data)
+        if at < n:
+            return render(data, at)
+        at -= n
+    raise IndexError(f"no page {index + 1}")
+
+
+from . import pdf, text  # noqa: E402,F401  (registers the readers)

@@ -1,5 +1,7 @@
 """Reading chord sheets: text decoding, sorting lines, chords, capo."""
 
+import pytest
+
 from soundselect.core.song import ChordFix
 from soundselect.sheets.capo import apply_capo
 from soundselect.sheets.lines import is_chord_line, sort_lines, tokenize
@@ -22,12 +24,10 @@ def test_input_kinds():
     assert detect_kind(SheetInput("Am C")) == "text"
     assert detect_kind(SheetInput(b"%PDF-1.7", "song.pdf")) == "pdf"
     assert detect_kind(SheetInput(b"\x89PNG", "song.png")) == "photo"
-    try:
-        read_sheet(SheetInput(b"%PDF-1.7", "song.pdf"))
-    except UnsupportedInput as exc:
-        assert "pdf" in str(exc)
-    else:
-        raise AssertionError("PDF sheets are not read yet")
+    with pytest.raises(UnsupportedInput, match="isn't a PDF that can be opened"):
+        read_sheet(SheetInput(b"%PDF-1.7", "song.pdf"))  # cut off after the header
+    with pytest.raises(UnsupportedInput, match="photo sheets is not built yet"):
+        read_sheet(SheetInput(b"\x89PNG", "song.png"))
 
 
 def test_chord_lines():

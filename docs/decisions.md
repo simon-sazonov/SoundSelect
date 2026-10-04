@@ -55,3 +55,115 @@ on ре" and keys "ре мажор", as in the screen design.
 
 **The chord chart.** Chords stay over their syllables. When a rewritten chord is longer than
 the original (F/A becomes D/F♯), the next chord and the words move right together.
+
+## Phase 1
+
+**Simple screens served by the back end.** Phase 1 needed "a simple screen to use it day to
+day" before the real front end exists. The back end serves five plain pages (new import,
+batch progress, song page with a Fix panel, library, settings) with a little JavaScript that
+calls the same API the front end will. There is no build step, and the pages go away or stay
+as a fallback once the front end arrives (`create_app(screens=False)` already turns them off).
+
+**One library folder.** Songs, imports, settings and saved step outputs live in one SQLite
+file (WAL mode, one short connection per call, so the web app and worker threads never share
+one) next to the inputs as they arrived, stored once each under their SHA-256. Moving to the
+home server means copying `~/.soundselect`. The database upgrades itself by numbered
+migrations, and refuses to open a library made by a newer version.
+
+**A stored song is the pipeline's result for the instrument it was made for.** Showing it for
+another instrument or with other note names is worked out when it is asked for, so changing
+your default instrument never rewrites the library. Corrections are saved apart from the
+result; a song saved by an older version is made again from its inputs when it is opened,
+keeping the corrections.
+
+**Jobs run inside the app.** Huey keeps its queue in a SQLite file in the library folder, and
+`soundselect serve` runs two worker threads, so one command starts everything.
+`soundselect worker` runs them as a process of their own, which the audio worker will use in
+Phase 4; that is also when the Docker Compose setup from the plan arrives, since there will be
+two processes to start together. Jobs that were running when the app stopped go back in the
+queue when it starts, and a job is only ever taken by one worker.
+
+**Every input gets a job, even before its reader exists.** Photos, audio, video and links are
+accepted now and their job fails at once with a message saying which phase reads them. The
+front end handles every kind the same way, and nothing in the API changes when the readers
+arrive.
+
+**Progress by Server-Sent Events.** The event stream checks the jobs' change counter four times
+a second and sends what changed. That needs no message broker, and the browser reconnects by
+itself.
+
+**The same sheet twice is the same song.** An import whose contents are already in the library
+returns that song instead of a copy, unless the import carries corrections (a key, a title).
+Checking for the song and saving a new one happen in one database write transaction, so two
+workers given the same sheet at the same moment still make one song.
+
+**Reading PDFs.** pdfplumber gives every letter with its position. In a typewriter font the
+letters sit on a grid, so the sheet comes out exactly as typed. In a proportional font (a sheet
+typed in Word) each chord is placed over the lyric letter below it by position, which lands
+within a letter of where the writer put it. Two columns are found from the empty strip
+between them; page numbers, web addresses and dates in the top and bottom margins are dropped.
+Margin lines are left out before looking for the strip, so a centred page number doesn't
+hide it. Positions and page sizes are those of the visible page (the PDF's CropBox), which is
+what gets drawn. A scanned PDF (pages that are pictures) gets a message that scans come with photo reading; a
+PDF with some scanned pages is read and says which pages were skipped.
+
+**Source pages are drawn when first asked for** (at 144 dpi with pypdfium2) and kept in the
+library folder. Each line of the song records its box on the page, for checking the reading
+side by side. PDFium can't draw from two threads at once, so drawing pages takes a lock.
+
+**Verovio is given its music fonts in every thread.** Verovio finds its fonts through a
+setting that only the thread that imported it gets, so the first staff drawn inside a web
+request came out empty. The drawing engine is now pointed at its font folder when it starts.
+
+**The app answers only this computer.** `serve` listens on 127.0.0.1 and warns when told to
+listen on other addresses, since there is no sign-in yet; the sign-in comes with the home
+server and Tailscale.
+
+**The app checks the Host and Origin of requests.** With no sign-in, a web page open in the
+browser must not be able to use the app. Requests must be addressed to 127.0.0.1, localhost
+or ::1 (others can be added with `SOUNDSELECT_ALLOWED_HOSTS`), which stops a site from
+pointing its own name at this computer to read the library (DNS rebinding). POST, PUT, PATCH
+and DELETE that carry an Origin must come from the app's own pages or an allowed CORS origin,
+so another site can't send a form that adds or deletes songs.
+
+**Tests use httpx2.** Starlette's test client now prefers httpx2 and warns about httpx.
+
+**The Phase 1 gate** is ten of your real chord sheets coming out right. The sample sheets and
+test PDFs in `backend/tests/data` stand in until those arrive.
+
+## Hooks for the next phases
+
+Photos (Phase 2) and sheet music (Phase 3) are built side by side, so the spots both touch
+landed once, before either.
+
+**One OpenCV for everything: `opencv-python-headless` 4.** RapidOCR asks for `opencv-python`
+and homr for the headless build; both installed side by side share one `cv2` folder and break
+homr. A uv override drops `opencv-python`, and everything uses the headless OpenCV 4, which
+needs no screen libraries on the home server.
+
+**onnxruntime below 1.24 on Intel Macs.** onnxruntime 1.24 and later has no Intel Mac wheels,
+though homr asks for 1.24.1 or later. Another override keeps Intel Macs on 1.20 to 1.23 and
+everything else on 1.24.1 or later. uv never builds these from source.
+
+**Extras for the heavy tools.** The photo reader (RapidOCR, onnxruntime, OpenCV, HEIC
+support) is in the main install. Sheet music (`sheetmusic`: homr, music21) and links (`links`:
+yt-dlp) are extras; `uv sync --all-extras` installs everything, and CI does too. Without an
+extra the app still runs: Health says which tools are there, and an item that needs a missing
+one fails with a message saying to install it.
+
+**Pipelines register themselves.** Each phase's package registers its pipeline with
+`register_pipeline`; its name is its job kind ("sheet_music", "song"). Importing a package stays
+cheap: the heavy libraries are imported inside functions. A pipeline can say whether its tools
+are installed (`available`), whether it should read an image (`claims`), and how to draw its
+source pages (`pages`).
+
+**Routing and grouping.** `route` sends each item to a pipeline: text and PDF to chord
+sheets; images to sheet music when it claims them (or `image_mode` says so), else to chord
+sheet photos; videos to sheet music; audio to songs; links by `link_mode`. A group is always
+one song or piece, from files that go to the same pipeline, which must read several files at
+once. Sheet music screenshots in no group make one piece, since a piece's pages are usually
+chosen together.
+
+**Page numbers run across a song's files.** Each kind of file with pages registers how to count
+and draw them; a song's pages are numbered across its files in order, so a two-page PDF then a
+photo gives pages 0, 1 and 2. Drawn pages are kept under the pipeline's name and its inputs.

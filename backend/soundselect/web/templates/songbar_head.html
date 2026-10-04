@@ -1,0 +1,25 @@
+<style>
+  .ss-bar { position: sticky; top: 0; z-index: 5; background: #15171c; color: #fff; font-size: 14px; }
+  .ss-bar .in { max-width: 900px; margin: 0 auto; padding: 8px 16px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+  .ss-bar a { color: #fff; text-decoration: none; }
+  .ss-bar .home { color: #f2b84b; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-size: 12px; margin-right: 4px; }
+  .ss-seg { display: inline-flex; border: 1px solid #4a4e57; border-radius: 9px; overflow: hidden; }
+  .ss-seg a { padding: 5px 10px; color: #d6d8dd; }
+  .ss-seg a.on { background: #f2b84b; color: #15171c; font-weight: 650; }
+  .ss-btn { padding: 5px 12px; border-radius: 9px; border: 1px solid #4a4e57; background: transparent; color: #fff; font: inherit; cursor: pointer; }
+  .ss-btn.brass { background: #f2b84b; border-color: #f2b84b; color: #15171c; font-weight: 650; }
+  .ss-spacer { flex: 1; }
+  .ss-fix { background: #fdf6e8; border-bottom: 2px solid #f2b84b; }
+  .ss-fix .in { max-width: 900px; margin: 0 auto; padding: 14px 16px; }
+  .ss-fix h2 { margin: 0 0 10px; }
+  .ss-fix .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .ss-fix .row > div { flex: 1 1 170px; }
+  .ss-fix label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .ss-fix input, .ss-fix select { width: 100%; font: inherit; padding: 7px 9px; border: 1px solid #d9c9a8; border-radius: 8px; background: #fff; }
+  .ss-fix .actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .ss-fix .hint { color: #5f636b; font-size: 13px; }
+  .ss-fix .error { color: #b54708; font-weight: 600; }
+  .ss-fix .danger { margin-left: auto; color: #b54708; background: none; border: 0; font: inherit; cursor: pointer; text-decoration: underline; }
+  @media screen { main > header .brand { display: none; } }  /* the bar carries the name */
+  @media print { .ss-bar, .ss-fix { display: none !important; } }
+</style>

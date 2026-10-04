@@ -1,0 +1,79 @@
+<nav class="ss-bar"><div class="in">
+  <a class="home" href="/">SoundSelect</a>
+  <a href="/library">Library</a>
+  <span class="ss-seg" title="Note names">
+  {% for value, label, href in name_links %}<a href="{{ href }}"{% if value == names %} class="on"{% endif %}>{{ label }}</a>{% endfor %}
+  </span>
+  <span class="ss-seg" title="Notes as written for your instrument, or as the piano plays them">
+    <a href="{{ written_link }}"{% if written %} class="on"{% endif %}>{{ instrument_name }}</a><a href="{{ concert_link }}"{% if not written %} class="on"{% endif %}>Concert</a>
+  </span>
+  <span class="ss-spacer"></span>
+  <a class="ss-btn" href="{{ pdf_link }}">PDF</a>
+  <button class="ss-btn brass" type="button" onclick="document.getElementById('ss-fix').hidden = !document.getElementById('ss-fix').hidden">Fix</button>
+</div></nav>
+<section class="ss-fix" id="ss-fix" hidden><div class="in">
+  <h2>Fix what was read wrong</h2>
+  <div class="row">
+    <div><label for="ss-key">Key (concert, as the piano plays it)</label>
+      <select id="ss-key">
+        <option value="">Found from the chords</option>
+        {% for value, label in key_options %}<option value="{{ value }}"{% if corrections.key and corrections.key == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
+        {% if corrections.key and corrections.key not in key_options | map("first") %}<option value="{{ corrections.key }}" selected>{{ corrections.key }}</option>{% endif %}
+      </select></div>
+    <div><label for="ss-capo">Capo</label><input id="ss-capo" type="number" min="0" max="12" value="{{ corrections.capo if corrections.capo is not none else '' }}" placeholder="as on the sheet"></div>
+    <div><label for="ss-title">Title</label><input id="ss-title" type="text" value="{{ song.identity.title or '' }}"></div>
+    <div><label for="ss-artist">Artist</label><input id="ss-artist" type="text" value="{{ song.identity.artist or '' }}"></div>
+  </div>
+  {% if sheet_chords %}
+  <div class="row" style="margin-top: 10px">
+    <div><label for="ss-chord">A chord as written on the sheet</label>
+      <select id="ss-chord"><option value=""></option>{% for c in sheet_chords %}<option>{{ c }}</option>{% endfor %}</select></div>
+    <div><label for="ss-to">should be (leave empty to remove it)</label><input id="ss-to" type="text" placeholder="e.g. F#m7"></div>
+  </div>
+  {% endif %}
+  <div class="actions">
+    <button class="ss-btn brass" type="button" id="ss-save">Save</button>
+    {% if corrections.key or corrections.capo is not none or corrections.chords or corrections.title or corrections.artist %}
+    <button class="ss-btn" type="button" id="ss-undo" style="color:#15171c;border-color:#d9c9a8">Undo all my fixes</button>
+    {% endif %}
+    <span class="hint">Saving runs only the steps your fix touches.</span>
+    <span class="error" id="ss-error" hidden></span>
+    <button class="danger" type="button" id="ss-delete">Delete this song</button>
+  </div>
+</div></section>
+<script>
+(() => {
+  const songId = {{ song.id | tojson }};
+  const fixes = {{ fixes | tojson }};
+  const fields = { key: "ss-key", capo: "ss-capo", title: "ss-title", artist: "ss-artist" };
+  const value = (name) => document.getElementById(fields[name]).value.trim();
+  const initial = Object.fromEntries(Object.keys(fields).map((name) => [name, value(name)]));
+  const error = document.getElementById("ss-error");
+  const send = async (patch) => {
+    error.hidden = true;
+    const res = await fetch(`/api/v1/songs/${songId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (res.ok) { location.reload(); return; }
+    const problem = await res.json();
+    error.textContent = Array.isArray(problem.detail) ? problem.detail.map(d => d.msg).join("; ") : problem.detail.message;
+    error.hidden = false;
+  };
+  document.getElementById("ss-save").addEventListener("click", () => {
+    const patch = {};
+    for (const name of Object.keys(fields)) {
+      const v = value(name);
+      if (v !== initial[name]) patch[name] = v === "" ? null : name === "capo" ? Number(v) : v;
+    }
+    const chord = document.getElementById("ss-chord");
+    if (chord && chord.value) patch.chords = [...fixes, { original: chord.value, to: document.getElementById("ss-to").value.trim() }];
+    if (!Object.keys(patch).length) { document.getElementById("ss-fix").hidden = true; return; }
+    send(patch);
+  });
+  const undo = document.getElementById("ss-undo");
+  if (undo) undo.addEventListener("click", () => send({ key: null, capo: null, title: null, artist: null, chords: [] }));
+  document.getElementById("ss-delete").addEventListener("click", async () => {
+    if (!confirm("Delete this song from your library?")) return;
+    const res = await fetch(`/api/v1/songs/${songId}`, { method: "DELETE" });
+    if (res.ok) location.href = "/library";
+  });
+})();
+</script>

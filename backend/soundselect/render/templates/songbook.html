@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }} · SoundSelect</title>
+<style>
+{% include "_song_style.html" %}
+  .cover h1 { font-size: 34px; margin: 6px 0 4px; }
+  .cover .for { color: var(--muted); margin: 0 0 22px; }
+  .contents { list-style: none; padding: 0; margin: 0; font-size: 16px; }
+  .contents li { padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .contents a { color: var(--ink); text-decoration: none; }
+  .contents .t { font-weight: 600; }
+  .contents .by { color: var(--muted); }
+  .contents .key { color: var(--brass); white-space: nowrap; }
+  .song { padding-top: 26px; margin-top: 30px; border-top: 3px solid var(--brass-light); }
+  @media print {
+    .song { break-before: page; page-break-before: always; border: 0; margin: 0; padding: 0; }
+    .contents a::after { content: leader(". ") target-counter(attr(href), page); color: var(--muted); }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="cover">
+    <div class="brand">SoundSelect</div>
+    <h1>{{ title }}</h1>
+    <p class="for">{{ entries | length }} song{% if entries | length != 1 %}s{% endif %}, written for {{ instrument }}. Made on {{ today }}.</p>
+    <ol class="contents">
+    {% for e in entries %}
+      <li><a href="#{{ e.anchor }}"><span class="t">{{ e.title }}</span>{% if e.artist %} <span class="by">· {{ e.artist }}</span>{% endif %}{% if e.key %} <span class="key">· {{ e.key }}</span>{% endif %}</a></li>
+    {% endfor %}
+    </ol>
+  </section>
+  {% for body in bodies %}
+  <article class="song" id="{{ entries[loop.index0].anchor }}">
+{{ body }}
+  </article>
+  {% endfor %}
+  <footer>Made with SoundSelect {{ version }}.</footer>
+</main>
+</body>
+</html>

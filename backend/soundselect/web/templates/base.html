@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}SoundSelect{% endblock %}</title>
+<style>
+  :root {
+    --ground: #edeff2; --paper: #fff; --ink: #15171c; --muted: #5f636b; --line: #dfe2e7;
+    --brass: #a24e00; --brass-light: #f2b84b; --soft: #fdf6e8; --blue: #2449c4; --clash: #b54708;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--ink);
+    font: 15px/1.45 -apple-system, "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", sans-serif;
+  }
+  a { color: var(--blue); }
+  header.top { background: var(--ink); color: #fff; }
+  header.top .in { max-width: 960px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  header.top .brand { color: var(--brass-light); font-weight: 700; letter-spacing: .12em; text-transform: uppercase; font-size: 13px; text-decoration: none; }
+  header.top nav { display: flex; gap: 14px; }
+  header.top nav a { color: #fff; text-decoration: none; opacity: .85; }
+  header.top nav a.on, header.top nav a:hover { opacity: 1; text-decoration: underline; text-underline-offset: 4px; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 26px; margin: 4px 0 14px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 26px 0 8px; }
+  .card { background: var(--paper); border-radius: 14px; padding: 18px; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
+  label { display: block; font-weight: 600; margin: 0 0 6px; }
+  textarea, input[type=text], input[type=search], input[type=number], select {
+    width: 100%; font: inherit; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink);
+  }
+  textarea { font-family: "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 13.5px; min-height: 220px; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 160px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+  button, .button {
+    display: inline-block; font: inherit; font-weight: 650; border: 0; border-radius: 10px; cursor: pointer;
+    padding: 10px 18px; background: var(--ink); color: #fff; text-decoration: none;
+  }
+  button.brass, .button.brass { background: var(--brass-light); color: var(--ink); }
+  button.quiet, .button.quiet { background: transparent; color: var(--blue); padding: 10px 6px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .error { color: var(--clash); font-weight: 600; }
+  details { margin-top: 14px; }
+  summary { cursor: pointer; color: var(--blue); }
+  .songs { list-style: none; margin: 0; padding: 0; }
+  .songs li { border-top: 1px solid var(--line); }
+  .songs li:first-child { border-top: 0; }
+  .songs a { display: grid; grid-template-columns: 1fr auto; gap: 2px 14px; padding: 11px 4px; text-decoration: none; color: var(--ink); }
+  .songs a:hover { background: var(--soft); }
+  .songs .t { font-weight: 650; }
+  .songs .by { color: var(--muted); font-weight: 400; }
+  .songs .k { color: var(--brass); font-weight: 650; text-align: right; white-space: nowrap; }
+  .songs .p { color: var(--muted); font-size: 13px; }
+  .songs .d { color: var(--muted); font-size: 13px; text-align: right; }
+  .warn { color: var(--clash); font-size: 13px; }
+  .empty { color: var(--muted); }
+  {% block style %}{% endblock %}
+</style>
+</head>
+<body>
+<header class="top"><div class="in">
+  <a class="brand" href="/">SoundSelect</a>
+  <nav>
+    <a href="/"{% if page == "home" %} class="on"{% endif %}>New</a>
+    <a href="/library"{% if page == "library" %} class="on"{% endif %}>Library</a>
+    <a href="/settings"{% if page == "settings" %} class="on"{% endif %}>Settings</a>
+  </nav>
+</div></header>
+<main>
+{% block main %}{% endblock %}
+</main>
+{% block script %}{% endblock %}
+</body>
+</html>

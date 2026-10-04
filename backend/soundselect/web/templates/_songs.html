@@ -1,0 +1,14 @@
+{% if songs %}
+<ul class="songs">
+{% for s in songs %}
+  <li><a href="/songs/{{ s.id }}">
+    <span class="t">{{ s.title }}{% if s.artist %} <span class="by">· {{ s.artist }}</span>{% endif %}</span>
+    <span class="k">{{ s.key or "" }}</span>
+    <span class="p">{% if s.pentatonic %}Pentatonic: {{ s.pentatonic }}{% endif %}{% if s.warnings %} <span class="warn">· {{ s.warnings }} to check</span>{% endif %}</span>
+    <span class="d">{{ s.added }}</span>
+  </a></li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="empty">{{ empty }}</p>
+{% endif %}

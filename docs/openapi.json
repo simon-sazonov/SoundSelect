@@ -1,0 +1,3808 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SoundSelect",
+    "description": "\nSoundSelect's back end. Every screen talks to it through these calls.\n\nSongs come back as the **Song result** (see the `Song` schema): concert pitch and written for\nthe instrument, with the key's pentatonic first. Errors come as\n`{\"detail\": {\"code\": ..., \"message\": ...}}`, with a message that can be shown as it is.\n",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/v1/imports": {
+      "post": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Start an import",
+        "description": "Start making songs: pasted text, files and links, one song each. Files can be grouped\ninto one song or piece, and sheet music screenshots in no group make one piece. Returns at\nonce with a batch holding a job per song; follow it with ``GET /batches/{id}`` or the event\nstream. Inputs that can't be read yet get a job that has already failed with the reason, so\nevery item shows up in the batch.",
+        "operationId": "create_import_api_v1_imports_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_import_api_v1_imports_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{batch_id}": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Get Batch",
+        "description": "A batch's progress: each song's status and current step.",
+        "operationId": "get_batch_api_v1_batches__batch_id__get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{batch_id}/events": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Batch Events",
+        "description": "Live progress of a whole batch over one connection: a ``job`` event (a Job) each time a\njob changes, a ``batch`` event (the Batch) when the counts change, and ``end`` once every\njob has finished.",
+        "operationId": "batch_events_api_v1_batches__batch_id__events_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Get Job",
+        "operationId": "get_job_api_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobInfo"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/events": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Job Events",
+        "description": "Live progress of one job: a ``job`` event (a Job) on every change, then ``end``.",
+        "operationId": "job_events_api_v1_jobs__job_id__events_get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/batches/{batch_id}/songbook": {
+      "get": {
+        "tags": [
+          "imports"
+        ],
+        "summary": "Batch Songbook",
+        "description": "The batch's finished songs in one document, with a contents page; written for the\ninstrument the batch was imported for, unless another is asked for.",
+        "operationId": "batch_songbook_api_v1_batches__batch_id__songbook_get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Batch Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pdf",
+                "html"
+              ],
+              "type": "string",
+              "default": "pdf",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "letters",
+                    "russian",
+                    "solfege",
+                    "german",
+                    "both",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Note names to add (or show on the staff); your default when left out.",
+              "title": "Names"
+            },
+            "description": "Note names to add (or show on the staff); your default when left out."
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "written",
+                "concert"
+              ],
+              "type": "string",
+              "description": "Notes as written for the instrument, or in concert pitch.",
+              "default": "written",
+              "title": "View"
+            },
+            "description": "Notes as written for the instrument, or in concert pitch."
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Songbook",
+            "content": {
+              "application/pdf": {},
+              "text/html": {}
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "List Songs",
+        "description": "The library: newest first, or by title; a search matches every word given.",
+        "operationId": "list_songs_api_v1_songs_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Words to find in title, artist, lyrics.",
+              "title": "Q"
+            },
+            "description": "Words to find in title, artist, lyrics."
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "recent",
+                "title"
+              ],
+              "type": "string",
+              "default": "recent",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SongList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs/{song_id}": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Get Song",
+        "description": "The full Song result, written for the instrument, with a table of note names.",
+        "operationId": "get_song_api_v1_songs__song_id__get",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "letters",
+                    "russian",
+                    "solfege",
+                    "german",
+                    "both",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Note names to add (or show on the staff); your default when left out.",
+              "title": "Names"
+            },
+            "description": "Note names to add (or show on the staff); your default when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Song"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Patch Song",
+        "description": "Save corrections (the key, the capo, a chord, the title) and get the song back once the\nsteps they touch have run again. Fields left out stay as they are; null clears one. An\nempty body makes the song again with the newest version of every step.",
+        "operationId": "patch_song_api_v1_songs__song_id__patch",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "letters",
+                    "russian",
+                    "solfege",
+                    "german",
+                    "both",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Note names to add (or show on the staff); your default when left out.",
+              "title": "Names"
+            },
+            "description": "Note names to add (or show on the staff); your default when left out."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SongPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Song"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Delete Song",
+        "operationId": "delete_song_api_v1_songs__song_id__delete",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs/{song_id}/score": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Get Score",
+        "description": "One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:\nthe key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, or\none chord with its notes and scale.",
+        "operationId": "get_score_api_v1_songs__song_id__score_get",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          },
+          {
+            "name": "part",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "headline",
+                "scales",
+                "chord_scales",
+                "chord_notes",
+                "all",
+                "chord"
+              ],
+              "type": "string",
+              "default": "all",
+              "title": "Part"
+            }
+          },
+          {
+            "name": "chord",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "For part=chord: the chord's concert symbol.",
+              "title": "Chord"
+            },
+            "description": "For part=chord: the chord's concert symbol."
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "letters",
+                    "russian",
+                    "solfege",
+                    "german",
+                    "both",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Note names to add (or show on the staff); your default when left out.",
+              "title": "Names"
+            },
+            "description": "Note names to add (or show on the staff); your default when left out."
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "written",
+                "concert"
+              ],
+              "type": "string",
+              "description": "Notes as written for the instrument, or in concert pitch.",
+              "default": "written",
+              "title": "View"
+            },
+            "description": "Notes as written for the instrument, or in concert pitch."
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "musicxml",
+                "svg"
+              ],
+              "type": "string",
+              "default": "musicxml",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The staff",
+            "content": {
+              "application/vnd.recordare.musicxml+xml": {},
+              "image/svg+xml": {}
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs/{song_id}/export": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Export Song",
+        "description": "Download the song: the song page as PDF or HTML, the staves as MusicXML (opens in\nMuseScore), the Song result as JSON, or a text summary.",
+        "operationId": "export_song_api_v1_songs__song_id__export_get",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pdf",
+                "html",
+                "musicxml",
+                "json",
+                "txt",
+                "midi"
+              ],
+              "type": "string",
+              "default": "pdf",
+              "title": "Format"
+            }
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "letters",
+                    "russian",
+                    "solfege",
+                    "german",
+                    "both",
+                    "none"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Note names to add (or show on the staff); your default when left out.",
+              "title": "Names"
+            },
+            "description": "Note names to add (or show on the staff); your default when left out."
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "written",
+                "concert"
+              ],
+              "type": "string",
+              "description": "Notes as written for the instrument, or in concert pitch.",
+              "default": "written",
+              "title": "View"
+            },
+            "description": "Notes as written for the instrument, or in concert pitch."
+          },
+          {
+            "name": "instrument",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Instrument to write for; your default when left out.",
+              "title": "Instrument"
+            },
+            "description": "Instrument to write for; your default when left out."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/pdf": {},
+              "text/html": {},
+              "application/vnd.recordare.musicxml+xml": {},
+              "application/json": {},
+              "text/plain": {}
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "MIDI comes in a later phase.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs/{song_id}/pages": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Get Pages",
+        "description": "The source's pages as images, and where each line of the song sits on them, to check\nthe reading side by side. Pasted text has no pages.",
+        "operationId": "get_pages_api_v1_songs__song_id__pages_get",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourcePages"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/songs/{song_id}/pages/{index}.png": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Get Page Image",
+        "operationId": "get_page_image_api_v1_songs__song_id__pages__index__png_get",
+        "parameters": [
+          {
+            "name": "song_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Song Id"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Index"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page",
+            "content": {
+              "image/png": {}
+            }
+          },
+          "400": {
+            "description": "The request can't be used; see the message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "songs"
+        ],
+        "summary": "Search",
+        "description": "Find a song on YouTube by name (arrives with the song tool).",
+        "operationId": "search_api_v1_search_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "501": {
+            "description": "Not built yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Get Settings",
+        "description": "Your defaults: instrument, note names, comfortable range, photo reader.",
+        "operationId": "get_settings_api_v1_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Put Settings",
+        "operationId": "put_settings_api_v1_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/instruments": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Instruments",
+        "description": "The instruments songs can be written for.",
+        "operationId": "instruments_api_v1_instruments_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InstrumentInfo"
+                  },
+                  "type": "array",
+                  "title": "Response Instruments Api V1 Instruments Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Health",
+        "description": "Whether the app is up, and which tools are installed.",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BatchInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "working",
+              "done"
+            ],
+            "title": "Status",
+            "description": "'done' once every job has finished, even when some failed."
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "options": {
+            "$ref": "#/components/schemas/ImportOptions"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobInfo"
+            },
+            "type": "array",
+            "title": "Jobs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "status",
+          "total",
+          "done",
+          "failed",
+          "options",
+          "jobs"
+        ],
+        "title": "BatchInfo",
+        "description": "One import: a job for each song, filled in song by song."
+      },
+      "Body_create_import_api_v1_imports_post": {
+        "properties": {
+          "text": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Pasted chord sheets; each one is a song."
+          },
+          "files": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "contentMediaType": "application/octet-stream"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Files",
+            "description": "Files: text, PDF and photos of chord sheets; screenshots and videos of sheet music; audio files. Each is read once its phase is built."
+          },
+          "link": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link",
+            "description": "Links (YouTube and others): sheet music videos or songs; see link_mode."
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title",
+            "description": "For a single song."
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist",
+            "description": "For a single song."
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key",
+            "description": "Concert key, for a single song."
+          },
+          "capo": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capo",
+            "description": "For a single song."
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups",
+            "description": "Files that make one song or piece together, as JSON: [[0, 1], [2]]."
+          },
+          "image_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "chord_sheet",
+              "sheet_music"
+            ],
+            "title": "Image Mode",
+            "default": "auto"
+          },
+          "link_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "sound",
+              "sheet_music"
+            ],
+            "title": "Link Mode",
+            "default": "auto"
+          }
+        },
+        "type": "object",
+        "title": "Body_create_import_api_v1_imports_post"
+      },
+      "ChordFix": {
+        "properties": {
+          "original": {
+            "type": "string",
+            "title": "Original",
+            "description": "The chord as it was read."
+          },
+          "to": {
+            "type": "string",
+            "title": "To",
+            "description": "The right chord, as on the sheet; empty to remove it."
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line",
+            "description": "Line number counted across the whole song."
+          },
+          "index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index",
+            "description": "Which chord in that line, from 0."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "original",
+          "to"
+        ],
+        "title": "ChordFix",
+        "description": "Replace a chord: one occurrence (line and index) or, without them, every occurrence."
+      },
+      "ChordInfo": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol",
+            "description": "Concert-pitch symbol; lines refer to chords by it."
+          },
+          "family": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor",
+              "dominant",
+              "half_diminished",
+              "diminished",
+              "augmented",
+              "suspended",
+              "power"
+            ],
+            "title": "Family"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count",
+            "description": "How many times the chord appears."
+          },
+          "concert": {
+            "$ref": "#/components/schemas/ChordSpelling"
+          },
+          "written": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChordSpelling"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scales": {
+            "items": {
+              "$ref": "#/components/schemas/ScaleInfo"
+            },
+            "type": "array",
+            "title": "Scales",
+            "description": "The scale offered over this chord first, then options."
+          },
+          "clashes": {
+            "$ref": "#/components/schemas/Spelled",
+            "description": "Notes of the key's pentatonic that rub against this chord."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "symbol",
+          "family",
+          "count",
+          "concert"
+        ],
+        "title": "ChordInfo"
+      },
+      "ChordPlacement": {
+        "properties": {
+          "chord": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chord",
+            "description": "Concert symbol (a key into Song.chords); null for 'N.C.' (no chord)."
+          },
+          "written": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "The chord exactly as it appears in the source."
+          },
+          "readable": {
+            "type": "boolean",
+            "title": "Readable",
+            "description": "False when the text could not be read as a chord.",
+            "default": true
+          },
+          "pos": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pos",
+            "description": "Letter position in the line, for sheets."
+          },
+          "beat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beat",
+            "description": "Beat from the start, for songs."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "chord",
+          "text"
+        ],
+        "title": "ChordPlacement"
+      },
+      "ChordSpelling": {
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "title": "Symbol",
+            "description": "ASCII chord symbol, e.g. 'Bb/D'."
+          },
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "quality": {
+            "type": "string",
+            "title": "Quality",
+            "description": "Normalized suffix, e.g. 'm7', 'maj7', 'sus4'."
+          },
+          "bass": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bass"
+          },
+          "tones": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tones",
+            "description": "Chord notes from the root up."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "symbol",
+          "root",
+          "quality",
+          "tones"
+        ],
+        "title": "ChordSpelling"
+      },
+      "Corrections": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key",
+            "description": "Concert key, e.g. 'Bb major' or 'Gm'."
+          },
+          "capo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capo",
+            "description": "Capo fret (or half steps) instead of the sheet's."
+          },
+          "chords": {
+            "items": {
+              "$ref": "#/components/schemas/ChordFix"
+            },
+            "type": "array",
+            "title": "Chords"
+          },
+          "melody_octave": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Melody Octave"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Corrections",
+        "description": "The player's edits, kept apart from what was computed."
+      },
+      "ErrorDetail": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "api": {
+            "type": "string",
+            "title": "Api",
+            "default": "v1"
+          },
+          "songs": {
+            "type": "integer",
+            "title": "Songs"
+          },
+          "jobs_waiting": {
+            "type": "integer",
+            "title": "Jobs Waiting",
+            "description": "Jobs queued or running."
+          },
+          "workers": {
+            "type": "boolean",
+            "title": "Workers",
+            "description": "Whether jobs run in this app (or a worker of its own)."
+          },
+          "tools": {
+            "$ref": "#/components/schemas/Tools"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "songs",
+          "jobs_waiting",
+          "workers",
+          "tools"
+        ],
+        "title": "Health"
+      },
+      "Identity": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "text",
+              "pdf",
+              "photo",
+              "screenshots",
+              "audio",
+              "link",
+              "video"
+            ],
+            "title": "Source",
+            "description": "What the song was read from."
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name",
+            "description": "File name or link, when there is one."
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint",
+            "description": "SHA-256 of the input, used to spot repeats."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source",
+          "fingerprint"
+        ],
+        "title": "Identity"
+      },
+      "ImportOptions": {
+        "properties": {
+          "instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument",
+            "description": "Instrument to write for; empty means your default."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key",
+            "description": "The concert key, when you know it: 'Bb', 'Gm'."
+          },
+          "capo": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capo"
+          },
+          "groups": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups",
+            "description": "Files that together make one song, as lists of file positions (from 0); for photos of a song that runs over two pages. Read from the photo phase on."
+          },
+          "image_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "chord_sheet",
+              "sheet_music"
+            ],
+            "title": "Image Mode",
+            "description": "What image files are: chord sheet photos or sheet music screenshots; auto looks for staves.",
+            "default": "auto"
+          },
+          "link_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "sound",
+              "sheet_music"
+            ],
+            "title": "Link Mode",
+            "description": "Whether a link is read for its sound (song tool) or the sheet music it shows. Read from the phases that add links.",
+            "default": "auto"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ImportOptions",
+        "description": "Options for one import. Title, artist, key and capo apply when it holds one song."
+      },
+      "InputRef": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text",
+              "pdf",
+              "photo",
+              "audio",
+              "video",
+              "link"
+            ],
+            "title": "Kind"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "File name, when the input was a file."
+          },
+          "sha": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha",
+            "description": "SHA-256 of the stored bytes (files, pasted text)."
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size",
+            "description": "Size in bytes."
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "The link, for links."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "InputRef",
+        "description": "One input of a job, as stored in the library."
+      },
+      "InstrumentInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "interval": {
+            "type": "string",
+            "title": "Interval",
+            "description": "From concert to written pitch, e.g. 'M6'."
+          },
+          "lowest": {
+            "type": "string",
+            "title": "Lowest"
+          },
+          "highest": {
+            "type": "string",
+            "title": "Highest"
+          },
+          "comfortable_low": {
+            "type": "string",
+            "title": "Comfortable Low"
+          },
+          "comfortable_high": {
+            "type": "string",
+            "title": "Comfortable High"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "interval",
+          "lowest",
+          "highest",
+          "comfortable_low",
+          "comfortable_high"
+        ],
+        "title": "InstrumentInfo"
+      },
+      "InstrumentView": {
+        "properties": {
+          "instrument": {
+            "type": "string",
+            "title": "Instrument",
+            "description": "Instrument id, e.g. 'alto_sax'."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "Display name, e.g. 'Alto sax in E♭'."
+          },
+          "interval": {
+            "type": "string",
+            "title": "Interval",
+            "description": "Interval from concert to written pitch: 'M6' for alto sax, or 'd7' when the written key is respelled to avoid more than six sharps."
+          },
+          "respelled": {
+            "type": "boolean",
+            "title": "Respelled",
+            "default": false
+          },
+          "written_key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeyName"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comfortable_low": {
+            "type": "string",
+            "title": "Comfortable Low",
+            "description": "Lowest comfortable written note, e.g. 'C4'."
+          },
+          "comfortable_high": {
+            "type": "string",
+            "title": "Comfortable High",
+            "description": "Highest comfortable written note, e.g. 'C6'."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "instrument",
+          "name",
+          "interval",
+          "comfortable_low",
+          "comfortable_high"
+        ],
+        "title": "InstrumentView"
+      },
+      "JobInfo": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position",
+            "description": "Place in the batch, from 0."
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "File name, link, or the first line of pasted text."
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "chord_sheet",
+                  "sheet_music",
+                  "song"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind",
+            "description": "The tool that reads it; null when none can yet."
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/InputRef"
+            },
+            "type": "array",
+            "title": "Inputs"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "step": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step",
+            "description": "The step running now, e.g. 'key'."
+          },
+          "step_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Step Label",
+            "description": "That step in words: 'Finding the key'."
+          },
+          "step_number": {
+            "type": "integer",
+            "title": "Step Number",
+            "description": "The running step's number, from 1.",
+            "default": 0
+          },
+          "step_count": {
+            "type": "integer",
+            "title": "Step Count",
+            "default": 0
+          },
+          "progress": {
+            "type": "number",
+            "title": "Progress",
+            "description": "0 to 1.",
+            "default": 0.0
+          },
+          "song_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Song Id"
+          },
+          "reused": {
+            "type": "boolean",
+            "title": "Reused",
+            "description": "The song was already in the library.",
+            "default": false
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error",
+            "description": "Why it failed, in words for the player."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "rev": {
+            "type": "integer",
+            "title": "Rev",
+            "description": "Goes up with every change; the event streams use it."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "batch_id",
+          "position",
+          "name",
+          "kind",
+          "inputs",
+          "status",
+          "created_at",
+          "rev"
+        ],
+        "title": "JobInfo",
+        "description": "One song being made: which step it is on, and the song once it's ready."
+      },
+      "KeyCandidate": {
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/KeyName"
+          },
+          "probability": {
+            "type": "number",
+            "title": "Probability"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "probability"
+        ],
+        "title": "KeyCandidate"
+      },
+      "KeyName": {
+        "properties": {
+          "tonic": {
+            "type": "string",
+            "title": "Tonic",
+            "description": "Spelled tonic, e.g. 'Bb'."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "major",
+              "minor"
+            ],
+            "title": "Mode"
+          },
+          "fifths": {
+            "type": "integer",
+            "title": "Fifths",
+            "description": "Key signature: sharps positive, flats negative."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "tonic",
+          "mode",
+          "fifths"
+        ],
+        "title": "KeyName"
+      },
+      "KeyResult": {
+        "properties": {
+          "concert": {
+            "$ref": "#/components/schemas/KeyName",
+            "description": "The song's key in concert pitch."
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence",
+            "description": "0-1: how sure this exact key is."
+          },
+          "signature_confidence": {
+            "type": "number",
+            "title": "Signature Confidence",
+            "description": "0-1: how sure the key signature is (this key or its relative major/minor, which share the pentatonic notes)."
+          },
+          "runners_up": {
+            "items": {
+              "$ref": "#/components/schemas/KeyCandidate"
+            },
+            "type": "array",
+            "title": "Runners Up"
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "chords",
+              "stated",
+              "melody",
+              "signature",
+              "correction"
+            ],
+            "title": "Basis",
+            "default": "chords"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "concert",
+          "confidence",
+          "signature_confidence"
+        ],
+        "title": "KeyResult"
+      },
+      "Line": {
+        "properties": {
+          "lyrics": {
+            "type": "string",
+            "title": "Lyrics",
+            "default": ""
+          },
+          "chords": {
+            "items": {
+              "$ref": "#/components/schemas/ChordPlacement"
+            },
+            "type": "array",
+            "title": "Chords"
+          },
+          "repeat": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat",
+            "description": "Play the line this many times ('x2')."
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Line"
+      },
+      "LineBox": {
+        "properties": {
+          "line": {
+            "type": "integer",
+            "title": "Line",
+            "description": "Line number across the whole song, as in corrections."
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "box": {
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 4,
+            "title": "Box",
+            "description": "x0, y0, x1, y1 on the page image, in pixels."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "line",
+          "page",
+          "box"
+        ],
+        "title": "LineBox"
+      },
+      "Melody": {
+        "properties": {
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/MelodyNote"
+            },
+            "type": "array",
+            "title": "Notes"
+          },
+          "octave_shift": {
+            "type": "integer",
+            "title": "Octave Shift",
+            "description": "Octaves the written melody is moved to fit the comfortable range.",
+            "default": 0
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "audio",
+              "sheet_music"
+            ],
+            "title": "Source"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source"
+        ],
+        "title": "Melody"
+      },
+      "MelodyNote": {
+        "properties": {
+          "concert": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concert",
+            "description": "Concert pitch with octave; null for a rest."
+          },
+          "written": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Written"
+          },
+          "start": {
+            "type": "number",
+            "title": "Start",
+            "description": "Start in beats from the beginning."
+          },
+          "length": {
+            "type": "number",
+            "title": "Length",
+            "description": "Length in beats."
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "out_of_range": {
+            "type": "boolean",
+            "title": "Out Of Range",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "concert",
+          "start",
+          "length"
+        ],
+        "title": "MelodyNote"
+      },
+      "Notice": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warning"
+            ],
+            "title": "Level",
+            "default": "info"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Notice"
+      },
+      "PageImage": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          },
+          "image": {
+            "type": "string",
+            "title": "Image",
+            "description": "Where to get the page image (PNG)."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "index",
+          "width",
+          "height",
+          "image"
+        ],
+        "title": "PageImage"
+      },
+      "ScaleInfo": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "major_pentatonic",
+              "minor_pentatonic",
+              "blues",
+              "major",
+              "natural_minor",
+              "arpeggio"
+            ],
+            "title": "Kind"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "headline",
+              "song",
+              "chord",
+              "alternative"
+            ],
+            "title": "Role",
+            "description": "'headline' is the key's pentatonic, shown first; 'song' other whole-song scales; 'chord' the scale offered over a chord; 'alternative' another option."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "concert": {
+            "$ref": "#/components/schemas/ScaleSpelling"
+          },
+          "written": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScaleSpelling"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "role",
+          "reason",
+          "concert"
+        ],
+        "title": "ScaleInfo"
+      },
+      "ScaleSpelling": {
+        "properties": {
+          "root": {
+            "type": "string",
+            "title": "Root"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Scale notes without octaves."
+          },
+          "staff": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Staff",
+            "description": "The notes with octaves as drawn on the staff, rising one octave."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "root",
+          "notes"
+        ],
+        "title": "ScaleSpelling"
+      },
+      "Section": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "intro",
+              "verse",
+              "pre_chorus",
+              "chorus",
+              "bridge",
+              "solo",
+              "instrumental",
+              "interlude",
+              "outro",
+              "coda",
+              "other"
+            ],
+            "title": "Kind",
+            "default": "other"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label",
+            "description": "The label as written, e.g. 'Припев'."
+          },
+          "repeat": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeat",
+            "description": "Play the section this many times ('x2')."
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/Line"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Section"
+      },
+      "Settings": {
+        "properties": {
+          "instrument": {
+            "type": "string",
+            "title": "Instrument",
+            "default": "alto_sax"
+          },
+          "comfortable_low": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfortable Low",
+            "description": "Written note; instrument default."
+          },
+          "comfortable_high": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comfortable High",
+            "description": "Written note; instrument default."
+          },
+          "names": {
+            "type": "string",
+            "enum": [
+              "letters",
+              "russian",
+              "solfege",
+              "german",
+              "both",
+              "none"
+            ],
+            "title": "Names",
+            "default": "russian"
+          },
+          "photo_reader": {
+            "type": "string",
+            "enum": [
+              "local",
+              "ai"
+            ],
+            "title": "Photo Reader",
+            "default": "local"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Settings"
+      },
+      "Song": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "song",
+            "title": "Kind",
+            "default": "song"
+          },
+          "schema_version": {
+            "type": "integer",
+            "title": "Schema Version",
+            "default": 1
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "identity": {
+            "$ref": "#/components/schemas/Identity"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeyResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "view": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstrumentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "form": {
+            "items": {
+              "$ref": "#/components/schemas/Section"
+            },
+            "type": "array",
+            "title": "Form"
+          },
+          "chords": {
+            "items": {
+              "$ref": "#/components/schemas/ChordInfo"
+            },
+            "type": "array",
+            "title": "Chords"
+          },
+          "scales": {
+            "items": {
+              "$ref": "#/components/schemas/ScaleInfo"
+            },
+            "type": "array",
+            "title": "Scales",
+            "description": "Whole-song scales; the first, role 'headline', is the key's pentatonic."
+          },
+          "melody": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Melody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Timing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "corrections": {
+            "$ref": "#/components/schemas/Corrections"
+          },
+          "notes": {
+            "items": {
+              "$ref": "#/components/schemas/Notice"
+            },
+            "type": "array",
+            "title": "Notes",
+            "description": "Notes to the player."
+          },
+          "source_pages": {
+            "items": {
+              "$ref": "#/components/schemas/SourcePage"
+            },
+            "type": "array",
+            "title": "Source Pages"
+          },
+          "versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Versions",
+            "description": "Version of each step that produced this result."
+          },
+          "names": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Names",
+            "description": "Display names for every pitch in the song, keyed by its text without octave ('Bb' -> 'си♭'); present when names were asked for."
+          },
+          "name_system": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name System"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identity"
+        ],
+        "title": "Song"
+      },
+      "SongList": {
+        "properties": {
+          "songs": {
+            "items": {
+              "$ref": "#/components/schemas/SongSummary"
+            },
+            "type": "array",
+            "title": "Songs"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "description": "Songs matching the search, beyond this page too."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "songs",
+          "total"
+        ],
+        "title": "SongList"
+      },
+      "SongPatch": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key",
+            "description": "The right concert key: 'Bb', 'Gm', 'ля минор'."
+          },
+          "capo": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 12.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capo"
+          },
+          "chords": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChordFix"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chords",
+            "description": "The whole list of chord fixes (send the list with yours added)."
+          },
+          "melody_octave": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3.0,
+                "minimum": -3.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Melody Octave"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SongPatch",
+        "description": "Corrections to save. Fields left out stay as they are; null clears one."
+      },
+      "SongSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "artist": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artist"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "text",
+              "pdf",
+              "photo",
+              "screenshots",
+              "audio",
+              "link",
+              "video"
+            ],
+            "title": "Source"
+          },
+          "source_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Name"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeyName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Concert key."
+          },
+          "written_key": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KeyName"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Key as written for the instrument."
+          },
+          "instrument": {
+            "type": "string",
+            "title": "Instrument"
+          },
+          "pentatonic": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pentatonic",
+            "description": "The key's pentatonic as written for the instrument, without octaves."
+          },
+          "warnings": {
+            "type": "integer",
+            "title": "Warnings",
+            "description": "How many notes to the player are warnings."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "artist",
+          "source",
+          "source_name",
+          "key",
+          "written_key",
+          "instrument",
+          "pentatonic",
+          "warnings",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SongSummary",
+        "description": "A song in the library list."
+      },
+      "SourcePage": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Image"
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width"
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "index"
+        ],
+        "title": "SourcePage"
+      },
+      "SourcePages": {
+        "properties": {
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/PageImage"
+            },
+            "type": "array",
+            "title": "Pages"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineBox"
+            },
+            "type": "array",
+            "title": "Lines"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pages",
+          "lines"
+        ],
+        "title": "SourcePages"
+      },
+      "SourceRef": {
+        "properties": {
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "box": {
+            "anyOf": [
+              {
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array",
+                "maxItems": 4,
+                "minItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box",
+            "description": "x0, y0, x1, y1 on the page image, in pixels."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "page"
+        ],
+        "title": "SourceRef"
+      },
+      "Spelled": {
+        "properties": {
+          "concert": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Concert"
+          },
+          "written": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Written"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Spelled",
+        "description": "The same pitches in concert pitch and as written for the instrument."
+      },
+      "Timing": {
+        "properties": {
+          "tempo": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tempo",
+            "description": "Beats per minute."
+          },
+          "time_signature": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Signature"
+          },
+          "beat_times": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Beat Times",
+            "description": "Beat times in seconds (songs)."
+          },
+          "downbeats": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downbeats"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Timing"
+      },
+      "Tools": {
+        "properties": {
+          "pdf_output": {
+            "type": "boolean",
+            "title": "Pdf Output",
+            "description": "Song pages as PDF (needs the Pango library)."
+          },
+          "pdf_reading": {
+            "type": "boolean",
+            "title": "Pdf Reading"
+          },
+          "photo_reading": {
+            "type": "boolean",
+            "title": "Photo Reading"
+          },
+          "sheet_music": {
+            "type": "boolean",
+            "title": "Sheet Music"
+          },
+          "audio": {
+            "type": "boolean",
+            "title": "Audio"
+          },
+          "links": {
+            "type": "boolean",
+            "title": "Links"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pdf_output",
+          "pdf_reading",
+          "photo_reading",
+          "sheet_music",
+          "audio",
+          "links"
+        ],
+        "title": "Tools"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

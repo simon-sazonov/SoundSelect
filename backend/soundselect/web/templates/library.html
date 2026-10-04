@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% set page = "library" %}
+{% block title %}Library · SoundSelect{% endblock %}
+{% block main %}
+<h1>Your songs</h1>
+<form class="row" method="get" action="/library" style="margin-bottom: 14px">
+  <input type="search" name="q" value="{{ q }}" placeholder="Search titles, artists and lyrics" style="flex: 4 1 260px">
+  <select name="sort" style="flex: 1 1 120px" onchange="this.form.submit()">
+    <option value="recent"{% if sort == "recent" %} selected{% endif %}>Newest first</option>
+    <option value="title"{% if sort == "title" %} selected{% endif %}>By title</option>
+  </select>
+</form>
+<p class="hint" style="margin: 0 0 8px">{{ total }} song{% if total != 1 %}s{% endif %}{% if q %} found{% endif %} · keys for {{ instrument }}</p>
+<div class="card">{% with empty = "No songs found." if q else "No songs yet. Paste a chord sheet on the New page." %}{% include "_songs.html" %}{% endwith %}</div>
+{% endblock %}

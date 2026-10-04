@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% set page = "settings" %}
+{% block title %}Settings · SoundSelect{% endblock %}
+{% block main %}
+<h1>Settings</h1>
+<form id="settings" class="card">
+  <div class="row">
+    <div><label for="instrument">Write songs for</label>
+      <select id="instrument" name="instrument">
+      {% for i in instruments %}<option value="{{ i.id }}"{% if i.id == settings.instrument %} selected{% endif %}>{{ i.display_name }}</option>{% endfor %}
+      </select></div>
+    <div><label for="names">Note names</label>
+      <select id="names" name="names">
+      {% for value, label in name_systems %}<option value="{{ value }}"{% if value == settings.names %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select></div>
+  </div>
+  <div class="row" style="margin-top: 14px">
+    <div><label for="low">Comfortable range: lowest note</label><input id="low" type="text" name="comfortable_low" value="{{ settings.comfortable_low or '' }}" placeholder="C4 (as written)"></div>
+    <div><label for="high">Highest note</label><input id="high" type="text" name="comfortable_high" value="{{ settings.comfortable_high or '' }}" placeholder="C6 (as written)"></div>
+  </div>
+  <p class="hint">Scales and chord notes are placed inside this range on the staff. Leave it empty for the instrument's usual range.</p>
+  <p style="margin: 16px 0 0"><button class="brass">Save</button> <span id="saved" class="hint" hidden>Saved.</span></p>
+  <p id="error" class="error" hidden></p>
+</form>
+{% endblock %}
+{% block script %}
+<script>
+const form = document.getElementById("settings");
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const error = document.getElementById("error"), saved = document.getElementById("saved");
+  error.hidden = true; saved.hidden = true;
+  // keep the settings this screen doesn't show (like the photo reader) as they are
+  const current = await (await fetch("/api/v1/settings")).json();
+  const body = { ...current, ...Object.fromEntries(new FormData(form)) };
+  for (const k of ["comfortable_low", "comfortable_high"]) if (!body[k].trim()) body[k] = null;
+  const res = await fetch("/api/v1/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (res.ok) { saved.hidden = false; return; }
+  const problem = await res.json();
+  error.textContent = Array.isArray(problem.detail) ? problem.detail.map(d => d.msg).join("; ") : problem.detail.message;
+  error.hidden = false;
+});
+</script>
+{% endblock %}

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 import threading
+from importlib.resources import files
 from typing import Any
 
 import verovio
@@ -38,7 +39,12 @@ def _get_toolkit() -> verovio.toolkit:
     global _toolkit
     if _toolkit is None:
         verovio.enableLog(verovio.LOG_OFF)
-        _toolkit = verovio.toolkit()
+        # Verovio keeps its default font folder per thread, set in the thread that imported
+        # it; a toolkit first made in a web request's thread is given the folder itself.
+        toolkit = verovio.toolkit(False)
+        if not toolkit.setResourcePath(str(files("verovio") / "data")):
+            raise RuntimeError("Verovio's music fonts are missing; reinstall verovio")
+        _toolkit = toolkit
     return _toolkit
 
 
