@@ -160,7 +160,17 @@ def test_health_tools(client, monkeypatch, without_photos):
     monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
     tools = client.get("/api/v1/health").json()["tools"]
     assert tools["sheet_music"] is True and tools["audio"] is False
-    assert tools["links"] is True  # yt-dlp comes with the extras
+    assert tools["links"] is False  # yt-dlp is installed, but no link downloader is built yet
+
+    import importlib.util
+
+    find_spec = importlib.util.find_spec
+
+    def with_links(name, *args):
+        return object() if name == "soundselect.links" else find_spec(name, *args)
+
+    monkeypatch.setattr(importlib.util, "find_spec", with_links)
+    assert client.get("/api/v1/health").json()["tools"]["links"] is True
 
 
 # Planning jobs

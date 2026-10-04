@@ -570,6 +570,9 @@ def health(lib: Lib, queue: Queue) -> Health:
             photo_reading="photo" in READERS,
             sheet_music=sheet_music,
             audio=audio,
-            links=importlib.util.find_spec("yt_dlp") is not None and (sheet_music or audio),
+            # the link downloader (soundselect.links) comes with the sheet music tool
+            links=importlib.util.find_spec("yt_dlp") is not None
+            and importlib.util.find_spec("soundselect.links") is not None
+            and (sheet_music or audio),
         ),
     )
