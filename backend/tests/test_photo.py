@@ -159,6 +159,8 @@ def test_engine_missing(monkeypatch, photos):
         ("Am", None),  # a chord already
         ("Аm", None),  # Russian А: the chord parser reads it as it is
         ("Arn", ["Am"]),
+        ("Ат", ["Аm"]),  # Cyrillic А and т, as the Russian model reads "Am"
+        ("Нт7", ["Нm7"]),  # the parser takes Cyrillic А and Н as they are
         ("Bl", ["Bb"]),  # a flat in some fonts
         ("Bbm7", None),
         ("Bb/DCm7", ["Bb/D", "Cm7"]),  # no space between them
@@ -209,3 +211,16 @@ def test_photos_through_the_app(client, photos, found_a_love):
     image = client.get(f"/api/v1/songs/{jobs[0]['song_id']}/pages/1.png")
     assert image.status_code == 200 and image.content.startswith(b"\x89PNG")
     assert Image.open(io.BytesIO(image.content)).size == (pages[1]["width"], pages[1]["height"])
+
+
+def test_cyrillic_reading_wins():
+    """The Latin model reads "Капо: 2" as "Kano: 2", surely; the Cyrillic reading wins."""
+    piece = engine._Piece
+    box = (0.0, 0.0, 100.0, 30.0)
+    latin = piece(box, "Kano: 2", 0.97, [], "multi")
+    russian = piece(box, "Капо: 2", 0.9, [], "eslav")
+    assert engine._merge([[latin], [russian]]) == [russian]
+    unsure = piece(box, "Кап", 0.4, [], "eslav")
+    assert engine._merge([[latin], [unsure]]) == [latin]
+    chord = piece(box, "Am", 0.99, [], "multi")
+    assert engine._merge([[chord], [piece(box, "Am", 0.95, [], "eslav")]]) == [chord]

@@ -14,6 +14,7 @@ sits above and the song page can show which part of the photo each line came fro
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -27,6 +28,7 @@ Box = tuple[float, float, float, float]  # x0, y0, x1, y1 in pixels of the pictu
 
 MIN_SCORE = 0.5  # readings less sure than this are dropped
 SAME_BOX = 0.5  # two outlines overlapping this much (of the smaller) are the same text
+CYRILLIC_SCORE = 0.6  # a Cyrillic reading at least this sure beats a Latin one
 
 # The settings each reading model adds to RapidOCR's defaults, as strings RapidOCR turns into
 # its own option values. "multi" is the model that ships inside RapidOCR's package.
@@ -181,15 +183,29 @@ def _overlap(a: Box, b: Box) -> float:
     return w * h / smaller if smaller > 0 else 0.0
 
 
+_CYRILLIC = re.compile(r"[\u0400-\u04ff]")
+
+
+def _better(piece: _Piece, than: _Piece) -> bool:
+    """Whether one reading of a piece of text beats another. Only the East Slavic model can
+    read Cyrillic, and the other model reads a Russian word as look-alike Latin letters
+    ("Капо" as "Kano") or as a lone sign, often quite surely; so a fair Cyrillic reading wins
+    over one without Cyrillic. Otherwise the surer reading wins."""
+    cyrillic, other = bool(_CYRILLIC.search(piece.text)), bool(_CYRILLIC.search(than.text))
+    if cyrillic != other:
+        return cyrillic and piece.score >= CYRILLIC_SCORE
+    return piece.score > than.score + 0.02
+
+
 def _merge(readings: list[list[_Piece]]) -> list[_Piece]:
-    """One reading per piece of text: the most confident of the models'."""
+    """One reading per piece of text: the better of the models' (see ``_better``)."""
     chosen: list[_Piece] = []
     for pieces in readings:
         for piece in pieces:
             same = next((c for c in chosen if _overlap(c.box, piece.box) > SAME_BOX), None)
             if same is None:
                 chosen.append(piece)
-            elif piece.score > same.score + 0.02:
+            elif _better(piece, same):
                 chosen[chosen.index(same)] = piece
     return chosen
 

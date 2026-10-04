@@ -9,7 +9,8 @@ margins are left out. Each line keeps its box on the prepared picture, so the so
 show the reading beside the photo.
 
 Reading mistakes that turn a chord into near-text are put right when the whole line then reads
-as chords: two chords read without the space between them (``Bb/DCm7``), ``rn`` read for ``m``,
+as chords: two chords read without the space between them (``Bb/DCm7``), ``rn`` or a Cyrillic
+``т`` read for ``m``,
 and ``l`` read for a flat. (Cyrillic letters that look like Latin ones, and the ♯ and ♭
 signs, the chord parser takes as they are.)
 
@@ -53,6 +54,7 @@ UNSURE = 0.75  # a chord read less surely than this is pointed out
 
 _CHORD_FIXES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"rn"), "m"),  # "Arn" -> "Am"
+    (re.compile(r"(?<=^[A-HА-ЕН])т"), "m"),  # Cyrillic т, read for m by the Russian model: "Ат"
     (re.compile(r"(?<=[A-H])\s*#"), "#"),
     (re.compile(r"^([A-H])l(?=$|[m7/])"), r"\1b"),  # "Bl" for "Bb" in some fonts
 ]
