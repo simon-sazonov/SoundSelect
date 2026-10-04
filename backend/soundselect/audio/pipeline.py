@@ -433,7 +433,7 @@ SONG = Pipeline(
 LABELS: Mapping[str, str] = {
     "fetch": "Opening the recording",
     "tuning": "Checking the tuning",
-    "separate": "Separating the voice",
+    "separate": "Separating the voice (this takes a few minutes)",
     "notes": "Finding the notes",
     "melody": "Picking out the melody",
     "beats": "Finding the beat",
