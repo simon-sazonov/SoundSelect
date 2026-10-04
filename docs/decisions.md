@@ -94,18 +94,22 @@ itself.
 
 **The same sheet twice is the same song.** An import whose contents are already in the library
 returns that song instead of a copy, unless the import carries corrections (a key, a title).
+Checking for the song and saving a new one happen in one database write transaction, so two
+workers given the same sheet at the same moment still make one song.
 
 **Reading PDFs.** pdfplumber gives every letter with its position. In a typewriter font the
 letters sit on a grid, so the sheet comes out exactly as typed. In a proportional font (a sheet
 typed in Word) each chord is placed over the lyric letter below it by position, which lands
 within a letter of where the writer put it. Two columns are found from the empty strip
 between them; page numbers, web addresses and dates in the top and bottom margins are dropped.
-A scanned PDF (pages that are pictures) gets a message that scans come with photo reading; a
+Margin lines are left out before looking for the strip, so a centred page number doesn't
+hide it. Positions and page sizes are those of the visible page (the PDF's CropBox), which is
+what gets drawn. A scanned PDF (pages that are pictures) gets a message that scans come with photo reading; a
 PDF with some scanned pages is read and says which pages were skipped.
 
 **Source pages are drawn when first asked for** (at 144 dpi with pypdfium2) and kept in the
 library folder. Each line of the song records its box on the page, for checking the reading
-side by side.
+side by side. PDFium can't draw from two threads at once, so drawing pages takes a lock.
 
 **Verovio is given its music fonts in every thread.** Verovio finds its fonts through a
 setting that only the thread that imported it gets, so the first staff drawn inside a web
@@ -114,6 +118,13 @@ request came out empty. The drawing engine is now pointed at its font folder whe
 **The app answers only this computer.** `serve` listens on 127.0.0.1 and warns when told to
 listen on other addresses, since there is no sign-in yet; the sign-in comes with the home
 server and Tailscale.
+
+**The app checks the Host and Origin of requests.** With no sign-in, a web page open in the
+browser must not be able to use the app. Requests must be addressed to 127.0.0.1, localhost
+or ::1 (others can be added with `SOUNDSELECT_ALLOWED_HOSTS`), which stops a site from
+pointing its own name at this computer to read the library (DNS rebinding). POST, PUT, PATCH
+and DELETE that carry an Origin must come from the app's own pages or an allowed CORS origin,
+so another site can't send a form that adds or deletes songs.
 
 **Tests use httpx2.** Starlette's test client now prefers httpx2 and warns about httpx.
 

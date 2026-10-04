@@ -51,5 +51,7 @@ def client(tmp_path):
 
     from soundselect.api import create_app
 
-    with TestClient(create_app(tmp_path / "library", immediate=True)) as test_client:
+    with TestClient(
+        create_app(tmp_path / "library", immediate=True, allowed_hosts=["testserver"])
+    ) as test_client:
         yield test_client

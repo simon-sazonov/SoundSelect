@@ -18,6 +18,7 @@ from .. import __version__
 from ..jobs import JobQueue
 from ..store import Library
 from .errors import add_error_handlers
+from .guard import LOCAL_HOSTS, RequestGuard
 from .routes import router
 
 # Where the front end runs while it's being built (Vite's dev server)
@@ -39,9 +40,13 @@ def create_app(
     immediate: bool = False,
     screens: bool = True,
     cors_origins: list[str] | None = None,
+    allowed_hosts: list[str] | None = None,
 ) -> FastAPI:
     """The app for the library in ``home``. ``workers`` worker threads run jobs inside the
-    app; ``immediate`` runs each job at once instead, before the request returns (tests)."""
+    app; ``immediate`` runs each job at once instead, before the request returns (tests).
+
+    Only requests addressed to ``allowed_hosts`` are answered: this computer by default, plus
+    any names in ``SOUNDSELECT_ALLOWED_HOSTS`` (comma-separated)."""
     library = Library(home)
     queue = JobQueue(library, immediate=immediate)
 
@@ -78,6 +83,11 @@ def create_app(
             allow_methods=["*"],
             allow_headers=["*"],
         )
+    hosts = allowed_hosts
+    if hosts is None:
+        extra = os.environ.get("SOUNDSELECT_ALLOWED_HOSTS", "")
+        hosts = [*LOCAL_HOSTS, *(h.strip() for h in extra.split(",") if h.strip())]
+    app.add_middleware(RequestGuard, hosts=hosts, origins=origins)  # outermost: runs first
 
     if screens:
         from ..web import add_screens

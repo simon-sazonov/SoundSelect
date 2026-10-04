@@ -9,6 +9,11 @@ Start the back end with `uv run soundselect serve` (http://127.0.0.1:8000). The 
 at `localhost:5173` may call it from the browser; add other origins with
 `SOUNDSELECT_CORS_ORIGINS=https://a.example,https://b.example`.
 
+The back end only answers requests addressed to 127.0.0.1, localhost or ::1; add other host
+names with `SOUNDSELECT_ALLOWED_HOSTS=mymac.local`. Others get 400 `bad_host`. A POST, PUT,
+PATCH or DELETE whose `Origin` is neither the app itself nor an allowed CORS origin gets 403
+`bad_origin`.
+
 ## Errors
 
 Every error the API answers on purpose looks the same, with a message written for the player

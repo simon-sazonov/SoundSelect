@@ -87,6 +87,76 @@ def test_page_images(pdfs):
         render_page(data, 2)
 
 
+def with_footer(path, text: str) -> bytes:
+    """The PDF with ``text`` centred at the foot of its first page (built-in Helvetica)."""
+    import ctypes
+
+    pdf = pdfium.PdfDocument(path)
+    page = pdf[0]
+    width, _ = page.get_size()
+    raw = pdfium.raw
+    obj = raw.FPDFPageObj_NewTextObj(pdf.raw, b"Helvetica", ctypes.c_float(9))
+    encoded = (text + "\0").encode("utf-16-le")
+    raw.FPDFText_SetText(
+        obj, ctypes.cast(ctypes.c_char_p(encoded), ctypes.POINTER(ctypes.c_ushort))
+    )
+    raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, width / 2 - 2.2 * len(text), 30)
+    raw.FPDFPage_InsertObject(page.raw, obj)
+    raw.FPDFPage_GenerateContent(page.raw)
+    out = io.BytesIO()
+    pdf.save(out)
+    return out.getvalue()
+
+
+def test_two_columns_with_a_page_number_in_the_footer(pdfs, found_a_love, tmp_path):
+    """A centred footer sits across the gap between the columns; it mustn't hide the gap."""
+    path = tmp_path / "two_columns_footer.pdf"
+    path.write_bytes(with_footer(pdfs / "two_columns.pdf", "Page 1 of 1"))
+    song = analyze_sheet(path)
+    same_song(song, found_a_love)
+    assert lyrics(song) == lyrics(found_a_love)
+    assert chords(song) == chords(found_a_love)
+    assert "Page" not in " ".join(lyrics(song))
+
+
+def test_cropped_pdf(pdfs, found_a_love, tmp_path):
+    """Sizes and line boxes are those of the visible (cropped) page, as it is drawn."""
+    pdf = pdfium.PdfDocument(pdfs / "found_a_love_mono.pdf")
+    width, height = pdf[0].get_size()
+    pdf[0].set_cropbox(30, 40, width - 50, height - 20)
+    path = tmp_path / "cropped.pdf"
+    with path.open("wb") as f:
+        pdf.save(f)
+    pdf.close()
+
+    song = analyze_sheet(path)
+    assert lyrics(song) == lyrics(found_a_love)
+    page = song.source_pages[0]
+    from PIL import Image
+
+    image = Image.open(io.BytesIO(render_page(path.read_bytes(), 0)))
+    assert (page.width, page.height) == image.size
+    assert page.width == round((width - 80) * PAGE_DPI / 72)
+    uncropped = analyze_sheet(pdfs / "found_a_love_mono.pdf")
+    for a, b in zip(song.lines(), uncropped.lines(), strict=True):
+        x0, y0, _, _ = a.source.box
+        bx0, by0, _, _ = b.source.box
+        assert abs(x0 - (bx0 - 30 * 2)) <= 1  # the crop's left edge, in pixels
+        assert abs(y0 - (by0 - 20 * 2)) <= 1  # the crop's top edge (20 points from the top)
+
+
+def test_page_images_from_many_threads(pdfs):
+    """PDFium can't draw from two threads at once; page images are drawn in a thread pool."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    data = (pdfs / "russian_two_pages.pdf").read_bytes()
+    expected = render_page(data, 0)
+    with ThreadPoolExecutor(8) as pool:
+        images = list(pool.map(lambda i: render_page(data, i % 2), range(40)))
+    assert all(png.startswith(b"\x89PNG") for png in images)
+    assert images[0] == expected
+
+
 def test_scanned_pdf(pdfs):
     with pytest.raises(ScannedPdf, match="This PDF is a scan"):
         read_sheet(SheetInput.from_path(pdfs / "scanned.pdf"))

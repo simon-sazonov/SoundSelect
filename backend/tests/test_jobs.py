@@ -139,3 +139,45 @@ def test_no_workers(library, workers):
     queue = JobQueue(library)
     queue.start(workers)
     assert not queue.running
+
+
+def test_queued_job_missing_from_the_queue_runs_on_start(library, sheet_text):
+    """A batch saved but never put in the queue (the app stopped in between) still runs."""
+    job = import_one(library, sheet_text)  # saved as queued, never enqueued
+    queue = JobQueue(library)
+    queue.start(1)
+    try:
+        assert wait_for(lambda: library.job(job.id).status == "done")
+    finally:
+        queue.stop()
+
+
+def test_same_sheet_twice_at_once_makes_one_song(library, sheet_text):
+    """Two workers given the same sheet at the same time: one song, the other job reuses it."""
+    import threading
+
+    jobs = [import_one(library, sheet_text), import_one(library, sheet_text)]
+    start = threading.Barrier(2)
+
+    def work(job_id):
+        start.wait()
+        run_job(library, job_id)
+
+    threads = [threading.Thread(target=work, args=(j.id,)) for j in jobs]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    done = [library.job(j.id) for j in jobs]
+    assert library.count_songs() == 1
+    assert [d.status for d in done] == ["done", "done"]
+    assert sorted(d.reused for d in done) == [False, True]
+    assert done[0].song_id == done[1].song_id
+
+
+def test_add_song_once(library, found_a_love):
+    first, reused = library.add_song_once(found_a_love, pipeline="chord_sheet", inputs=[])
+    assert not reused
+    again, reused = library.add_song_once(found_a_love, pipeline="chord_sheet", inputs=[])
+    assert (again, reused) == (first, True)
+    assert library.count_songs() == 1

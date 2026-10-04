@@ -22,7 +22,7 @@ LinkMode = Literal["auto", "sound", "sheet_music"]
 
 AUDIO_SUFFIXES = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".oga", ".opus", ".aac", ".aif", ".aiff"}
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
-_IMAGE_MAGIC = (b"\x89PNG", b"\xff\xd8\xff", b"GIF8", b"RIFF", b"II*\x00", b"MM\x00*")
+_IMAGE_MAGIC = (b"\x89PNG", b"\xff\xd8\xff", b"GIF8", b"II*\x00", b"MM\x00*")
 
 NOT_YET: dict[str, str] = {
     "photo": "Photos can't be read yet: photo reading is the next build phase.",
@@ -108,12 +108,13 @@ def file_kind(name: str | None, head: bytes) -> InputKind | None:
     suffix = PurePath(name or "").suffix.lower()
     if head.startswith(b"%PDF-") or suffix in PDF_SUFFIXES:
         return "pdf"
-    if suffix in PHOTO_SUFFIXES or head.startswith(_IMAGE_MAGIC):
-        return "photo"
     if suffix in AUDIO_SUFFIXES:
         return "audio"
     if suffix in VIDEO_SUFFIXES:
         return "video"
+    webp = head.startswith(b"RIFF") and head[8:12] == b"WEBP"  # WAV and AVI are RIFF too
+    if suffix in PHOTO_SUFFIXES or head.startswith(_IMAGE_MAGIC) or webp:
+        return "photo"
     if suffix in TEXT_SUFFIXES and _looks_like_text(head):
         return "text"
     return None

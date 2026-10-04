@@ -14,6 +14,7 @@ from ..core.song import Corrections, Song
 from ..imports import InputRef
 from ..settings import ViewSettings
 from ..sheets.readers import SheetInput, detect_kind
+from ..sheets.readers.text import decode_text
 from .chord_sheet import CHORD_SHEET, analyze_sheet
 from .runner import Cache, Pipeline, StepEvent
 
@@ -61,7 +62,8 @@ def _sheet_source(inputs: list[InputRef], read: ReadInput) -> SheetInput:
     ref = inputs[0]
     data = read(ref)
     if ref.kind == "text" and ref.name is None:
-        return SheetInput(data.decode("utf-8"), kind="text")  # pasted text
+        # pasted text, or a file sent without a name (which may be in cp1251)
+        return SheetInput(decode_text(data), kind="text")
     return SheetInput(data, ref.name, kind=ref.kind)
 
 

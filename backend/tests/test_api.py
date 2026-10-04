@@ -107,7 +107,9 @@ def test_import_checks_its_fields(client):
 
 def test_batch_events_follow_the_work(tmp_path, sheet_text):
     """Jobs that wait for a worker: the stream sends each change, then ends."""
-    app = create_app(tmp_path, workers=0)  # nothing runs the jobs but this test
+    app = create_app(
+        tmp_path, workers=0, allowed_hosts=["testserver"]
+    )  # nothing runs the jobs but this test
     with TestClient(app) as client:
         batch = import_text(client, sheet_text)
         job = batch["jobs"][0]
@@ -314,3 +316,97 @@ def test_published_description_is_current():
 
     kept = Path(__file__).parents[2] / "docs" / "openapi.json"
     assert kept.read_text(encoding="utf-8") == openapi_json()
+
+
+def test_same_text_twice_in_one_import(tmp_path, sheet_text):
+    """Two worker threads, the same sheet pasted twice: one song."""
+    import time
+
+    app = create_app(tmp_path, workers=2, allowed_hosts=["testserver"])
+    with TestClient(app) as client:
+        res = client.post(f"{API}/imports", data={"text": [sheet_text, sheet_text]})
+        assert res.status_code == 202, res.text
+        batch_id = res.json()["id"]
+        for _ in range(200):
+            batch = client.get(f"{API}/batches/{batch_id}").json()
+            if batch["status"] == "done":
+                break
+            time.sleep(0.05)
+    assert batch["status"] == "done"
+    assert app.state.library.count_songs() == 1
+    assert sorted(j["reused"] for j in batch["jobs"]) == [False, True]
+
+
+def test_only_this_computer_is_answered(tmp_path):
+    app = create_app(tmp_path, screens=False)  # the defaults: this computer only
+    for base in ("http://127.0.0.1:8000", "http://localhost:8000", "http://[::1]:8000"):
+        with TestClient(app, base_url=base) as client:
+            assert client.get(f"{API}/health").status_code == 200, base
+    with TestClient(app, base_url="http://evil.example:8000") as client:  # DNS rebinding
+        res = client.get(f"{API}/songs")
+    assert res.status_code == 400 and res.json()["detail"]["code"] == "bad_host"
+
+
+def test_allowed_hosts_from_the_environment(tmp_path, monkeypatch):
+    monkeypatch.setenv("SOUNDSELECT_ALLOWED_HOSTS", "mymac.local, other.lan")
+    app = create_app(tmp_path, screens=False)
+    with TestClient(app, base_url="http://mymac.local:8000") as client:
+        assert client.get(f"{API}/health").status_code == 200
+    with TestClient(app, base_url="http://127.0.0.1:8000") as client:
+        assert client.get(f"{API}/health").status_code == 200
+
+
+def test_changes_only_from_our_own_pages(client, song_id):
+    """Another site can't send a form or a fetch that changes the library."""
+    for origin in ("https://evil.example", "null", "http://testserver:9999"):
+        res = client.post(f"{API}/imports", data={"text": "Am C"}, headers={"Origin": origin})
+        assert res.status_code == 403, origin
+        assert res.json()["detail"]["code"] == "bad_origin"
+        res = client.delete(f"{API}/songs/{song_id}", headers={"Origin": origin})
+        assert res.status_code == 403
+    assert client.get(f"{API}/songs/{song_id}").status_code == 200
+    # the app's own pages, the front end's dev server, and tools that send no Origin
+    for headers in (
+        {"Origin": "http://testserver"},
+        {"Origin": "http://localhost:5173"},
+        {},
+    ):
+        res = client.post(f"{API}/imports", data={"text": "Am C"}, headers=headers)
+        assert res.status_code == 202, headers
+    # reading is fine from anywhere on this computer (CORS decides what a page may see)
+    assert client.get(f"{API}/songs", headers={"Origin": "https://evil.example"}).status_code == 200
+
+
+def test_nameless_text_upload_in_cp1251(client):
+    """A text file sent without a name is read like a named one, in cp1251 too."""
+    text = "Am        C\nПесня про лето\n".encode("cp1251")
+
+    def send(filename):
+        body = (
+            (
+                f'--x\r\nContent-Disposition: form-data; name="files"; filename="{filename}"\r\n'
+                "Content-Type: text/plain\r\n\r\n"
+            ).encode()
+            + text
+            + b"\r\n--x--\r\n"
+        )
+        res = client.post(
+            f"{API}/imports",
+            content=body,
+            headers={"Content-Type": "multipart/form-data; boundary=x"},
+        )
+        assert res.status_code == 202, res.text
+        job = res.json()["jobs"][0]
+        assert job["status"] == "done", job
+        return client.get(f"{API}/songs/{job['song_id']}").json()
+
+    named, nameless = send("x.txt"), send("")
+    for song in (named, nameless):
+        assert "Песня про лето" in json.dumps(song, ensure_ascii=False)
+
+
+def test_musicxml_of_a_song_without_chords(client):
+    song_id = import_text(client, "Just some words\nand more words")["jobs"][0]["song_id"]
+    assert client.get(f"{API}/songs/{song_id}/score").status_code == 404
+    res = client.get(f"{API}/songs/{song_id}/export", params={"format": "musicxml"})
+    assert res.status_code == 404 and res.json()["detail"]["code"] == "not_found"

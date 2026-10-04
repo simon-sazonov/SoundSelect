@@ -112,7 +112,10 @@ def recompute(lib: Library, record: SongRecord, corrections: Corrections) -> Son
         view=view_settings(lib),
         cache=lib.cache,
     )
-    return lib.save_song(song.model_copy(update={"id": record.id}))
+    try:
+        return lib.save_song(song.model_copy(update={"id": record.id}))
+    except KeyError:
+        raise NotFound("That song is no longer in the library.") from None
 
 
 def stored_song(lib: Library, song_id: str) -> Song:

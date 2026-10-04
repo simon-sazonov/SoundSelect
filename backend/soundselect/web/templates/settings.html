@@ -30,7 +30,9 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const error = document.getElementById("error"), saved = document.getElementById("saved");
   error.hidden = true; saved.hidden = true;
-  const body = Object.fromEntries(new FormData(form));
+  // keep the settings this screen doesn't show (like the photo reader) as they are
+  const current = await (await fetch("/api/v1/settings")).json();
+  const body = { ...current, ...Object.fromEntries(new FormData(form)) };
   for (const k of ["comfortable_low", "comfortable_high"]) if (!body[k].trim()) body[k] = null;
   const res = await fetch("/api/v1/settings", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   if (res.ok) { saved.hidden = false; return; }

@@ -70,9 +70,13 @@ def run_job(lib: Library, job_id: str) -> None:
             cache=lib.cache,
             on_step=on_step,
         )
-        song = lib.add_song(song, pipeline=spec.name, inputs=job.inputs)
-        assert song.id is not None
-        finish(song.id)
+        if options.has_corrections:
+            song = lib.add_song(song, pipeline=spec.name, inputs=job.inputs)
+            assert song.id is not None
+            finish(song.id)
+        else:  # the same sheet may be in another worker's hands right now
+            song_id, reused = lib.add_song_once(song, pipeline=spec.name, inputs=job.inputs)
+            finish(song_id, reused=reused)
     except UnsupportedInput as exc:
         _fail(lib, job_id, str(exc))
     except Exception as exc:

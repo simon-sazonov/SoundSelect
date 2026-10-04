@@ -16,6 +16,7 @@ from __future__ import annotations
 import io
 import re
 import statistics
+import threading
 from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
@@ -36,6 +37,10 @@ _PAGE_NUMBER_RE = re.compile(
 )
 _URL_RE = re.compile(r"(?:https?://|www\.)\S+|\b\S+\.(?:com|ru|net|org|io)/\S*", re.IGNORECASE)
 _STAMP_RE = re.compile(r"^\s*\d{1,2}[./]\d{1,2}[./]\d{2,4},?\s+\d{1,2}:\d{2}")
+
+# PDFium (pypdfium2) isn't safe to use from two threads at once, and page images are drawn
+# in the web server's thread pool.
+_pdfium_lock = threading.Lock()
 
 
 class ScannedPdf(UnsupportedInput):
@@ -87,7 +92,17 @@ class _Line:
         return max(w.x1 for w in self.words)
 
 
+def _visible(page: Any) -> Any:
+    """The part of the page a PDF viewer shows (its CropBox), which is what gets drawn."""
+    from pdfplumber.utils import get_bbox_overlap
+
+    box = get_bbox_overlap(page.cropbox, page.mediabox) or page.mediabox
+    return page if tuple(box) == tuple(page.bbox) else page.crop(box)
+
+
 def _words(page: Any) -> list[_Word]:
+    """The page's words, with positions measured from the top left of the visible page."""
+    ox, oy = float(page.bbox[0]), float(page.bbox[1])
     raw = page.extract_words(
         x_tolerance_ratio=0.15,
         y_tolerance=2,
@@ -101,13 +116,13 @@ def _words(page: Any) -> list[_Word]:
         text = w["text"].strip()
         if not text:
             continue
-        chars = [(c["x0"], c["x1"]) for c in w["chars"] if not c["text"].isspace()]
+        x0, x1 = w["x0"] - ox, w["x1"] - ox
+        chars = [(c["x0"] - ox, c["x1"] - ox) for c in w["chars"] if not c["text"].isspace()]
         if len(chars) != len(text):  # ligatures and the like: spread the word evenly
-            step = (w["x1"] - w["x0"]) / len(text)
-            chars = [(w["x0"] + i * step, w["x0"] + (i + 1) * step) for i in range(len(text))]
-        words.append(
-            _Word(text, w["x0"], w["x1"], w["top"], w["bottom"], w["size"], w["fontname"], chars)
-        )
+            step = (x1 - x0) / len(text)
+            chars = [(x0 + i * step, x0 + (i + 1) * step) for i in range(len(text))]
+        top, bottom = w["top"] - oy, w["bottom"] - oy
+        words.append(_Word(text, x0, x1, top, bottom, w["size"], w["fontname"], chars))
     fixed = _fixed_fonts(words)
     for w in words:
         w.fixed = w.font in fixed
@@ -164,21 +179,26 @@ def _gutter(words: list[_Word], width: float) -> float | None:
     return (best[0] + best[1]) / 2
 
 
-def _columns(words: list[_Word], width: float) -> list[list[_Word]]:
+def _columns(words: list[_Word], width: float, height: float) -> list[list[_Word]]:
     """Split a page printed in two columns, at a strip down the middle that no word crosses.
 
-    A title running across both columns at the top doesn't count as crossing.
+    A title running across both columns at the top doesn't count as crossing, and neither do
+    page numbers and web addresses in the top and bottom margins.
     """
     rows = _group_lines(words)
     for skip in range(min(4, len(rows))):
         body = [w for row in rows[skip:] for w in row.words]
-        gutter = _gutter(body, width)
+        inside = [w for w in body if MARGIN * height < w.top and w.bottom < (1 - MARGIN) * height]
+        gutter = _gutter(inside, width)
         if gutter is None:
             continue
         left = [w for w in body if w.x1 < gutter]
         right = [w for w in body if w.x0 > gutter]
         if len(_group_lines(left)) >= 3 and len(_group_lines(right)) >= 3:
             head = [w for row in rows[:skip] for w in row.words]
+            across = [w for w in body if w.x0 <= gutter <= w.x1]  # in the margins
+            head += [w for w in across if w.top <= MARGIN * height]
+            right += [w for w in across if w.top > MARGIN * height]
             return [head + left, right]
     return [words]
 
@@ -256,16 +276,27 @@ def _margin_noise(line: _Line, height: float) -> bool:
     return bool(_PAGE_NUMBER_RE.match(text) or _URL_RE.search(text) or _STAMP_RE.match(text))
 
 
+def _without_margin_noise(words: list[_Word], height: float) -> list[_Word]:
+    """The words, less page numbers and web addresses in the margins, so that a centred page
+    number doesn't join the two columns of a page."""
+    kept = []
+    for row in _group_lines(words):
+        row.text = " ".join(w.text for w in row.words)
+        if not _margin_noise(row, height):
+            kept += row.words
+    return kept
+
+
 def _box(line: _Line) -> tuple[float, float, float, float]:
     return tuple(round(v * SCALE, 1) for v in (line.x0, line.top, line.x1, line.bottom))  # type: ignore[return-value]
 
 
 def _page_lines(page: Any, number: int) -> list[TextLine]:
-    words = _words(page)
+    words = _without_margin_noise(_words(page), float(page.height))
     out: list[TextLine] = []
     if not words:
         return out
-    for column_words in _columns(words, float(page.width)):
+    for column_words in _columns(words, float(page.width), float(page.height)):
         column = _group_lines(column_words)
         cw = _char_width(column)
         left = min(line.x0 for line in column)
@@ -310,7 +341,8 @@ def read_pdf(inp: SheetInput) -> SheetText:
     scanned: list[int] = []
     unreadable = 0
     with pdf:
-        for number, page in enumerate(pdf.pages):
+        for number, whole_page in enumerate(pdf.pages):
+            page = _visible(whole_page)
             pages.append(
                 SourcePage(
                     index=number,
@@ -366,13 +398,14 @@ def render_page(data: bytes, index: int) -> bytes:
     """One page of a PDF drawn as a PNG at ``PAGE_DPI``, the size the line boxes refer to."""
     import pypdfium2 as pdfium
 
-    pdf = pdfium.PdfDocument(data)
-    try:
-        if not 0 <= index < len(pdf):
-            raise IndexError(f"the PDF has no page {index + 1}")
-        image = pdf[index].render(scale=SCALE).to_pil()
-        buffer = io.BytesIO()
-        image.save(buffer, "PNG", optimize=True)
-        return buffer.getvalue()
-    finally:
-        pdf.close()
+    with _pdfium_lock:
+        pdf = pdfium.PdfDocument(data)
+        try:
+            if not 0 <= index < len(pdf):
+                raise IndexError(f"the PDF has no page {index + 1}")
+            image = pdf[index].render(scale=SCALE).to_pil()
+            buffer = io.BytesIO()
+            image.save(buffer, "PNG", optimize=True)
+            return buffer.getvalue()
+        finally:
+            pdf.close()

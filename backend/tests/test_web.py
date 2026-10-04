@@ -87,6 +87,6 @@ def test_without_screens(tmp_path):
 
     from soundselect.api import create_app
 
-    with TestClient(create_app(tmp_path, screens=False)) as client:
+    with TestClient(create_app(tmp_path, screens=False, allowed_hosts=["testserver"])) as client:
         assert client.get("/").status_code == 404
         assert client.get("/api/v1/health").status_code == 200

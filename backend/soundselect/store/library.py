@@ -260,24 +260,46 @@ class Library:
     # Songs
 
     def add_song(self, song: Song, *, pipeline: str, inputs: list[InputRef]) -> Song:
+        with connect(self.db) as conn:
+            return self._insert_song(conn, song, pipeline=pipeline, inputs=inputs)
+
+    def add_song_once(
+        self, song: Song, *, pipeline: str, inputs: list[InputRef]
+    ) -> tuple[str, bool]:
+        """Save a new song unless one was already made from the same contents. The id comes
+        back, with True when it is the song already there. Checking and saving happen in one
+        write transaction, so two workers given the same sheet make one song."""
+        with connect(self.db) as conn, transaction(conn):
+            row = conn.execute(
+                "SELECT id FROM songs WHERE fingerprint = ? ORDER BY created_at LIMIT 1",
+                (song.identity.fingerprint,),
+            ).fetchone()
+            if row is not None:
+                return row[0], True
+            saved = self._insert_song(conn, song, pipeline=pipeline, inputs=inputs)
+        assert saved.id is not None
+        return saved.id, False
+
+    def _insert_song(
+        self, conn: sqlite3.Connection, song: Song, *, pipeline: str, inputs: list[InputRef]
+    ) -> Song:
         song_id = new_id()
         song = song.model_copy(update={"id": song_id})
         stamp = now()
-        with connect(self.db) as conn:
-            conn.execute(
-                "INSERT INTO songs (id, created_at, updated_at, pipeline, inputs, fingerprint, "
-                "title, artist, sort_title, source, source_name, key, warnings, search, "
-                "corrections, song) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (
-                    song_id,
-                    stamp,
-                    stamp,
-                    pipeline,
-                    json.dumps([r.model_dump(mode="json") for r in inputs]),
-                    song.identity.fingerprint,
-                    *self._song_columns(song),
-                ),
-            )
+        conn.execute(
+            "INSERT INTO songs (id, created_at, updated_at, pipeline, inputs, fingerprint, "
+            "title, artist, sort_title, source, source_name, key, warnings, search, "
+            "corrections, song) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                song_id,
+                stamp,
+                stamp,
+                pipeline,
+                json.dumps([r.model_dump(mode="json") for r in inputs]),
+                song.identity.fingerprint,
+                *self._song_columns(song),
+            ),
+        )
         return song
 
     def save_song(self, song: Song) -> Song:

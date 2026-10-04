@@ -406,8 +406,10 @@ def export_song(
 
             body, media = html_to_pdf(html), "application/pdf"
     elif format == "musicxml":
-        body = (song_score(song, "all", names=shown, view=view) or "").encode()
-        media = MUSICXML
+        score = song_score(song, "all", names=shown, view=view)
+        if not score:
+            raise service.NotFound("This song has no chords or key to write as staves.")
+        body, media = score.encode(), MUSICXML
     elif format == "json":
         body, media = song.model_dump_json(indent=2).encode(), "application/json"
     else:

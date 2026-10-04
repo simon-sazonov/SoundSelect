@@ -220,3 +220,32 @@ def test_source_pages(library, sheet_text, data_dir):
     text_id = add_song(library, sheet_text)
     with pytest.raises(NotFound, match="no source pages"):
         service.page_image(library, text_id, 0)
+
+
+def test_song_deleted_while_a_correction_is_saved(library, sheet_text, monkeypatch):
+    song_id = add_song(library, sheet_text)
+    recompute = service.recompute
+
+    def deleted_meanwhile(lib, record, corrections):
+        lib.delete_song(record.id)
+        return recompute(lib, record, corrections)
+
+    monkeypatch.setattr(service, "recompute", deleted_meanwhile)
+    with pytest.raises(NotFound):
+        service.correct_song(library, song_id, SongPatch(key="C"))
+
+
+@pytest.mark.parametrize(
+    ("name", "head", "kind"),
+    [
+        ("song.wav", b"RIFF\x24\x08\x00\x00WAVEfmt ", "audio"),
+        ("clip.avi", b"RIFF\x24\x08\x00\x00AVI LIST", "video"),
+        ("picture.webp", b"RIFF\x24\x08\x00\x00WEBPVP8 ", "photo"),
+        ("no_suffix", b"RIFF\x24\x08\x00\x00WEBPVP8 ", "photo"),
+        ("no_suffix", b"RIFF\x24\x08\x00\x00WAVEfmt ", None),
+    ],
+)
+def test_riff_files(name, head, kind):
+    from soundselect.imports import file_kind
+
+    assert file_kind(name, head) == kind

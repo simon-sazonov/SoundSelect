@@ -291,7 +291,7 @@ HomeOpt = Annotated[
         show_default=False,
     ),
 ]
-LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")  # as in api/guard.py
 
 
 def _summary_line(song: SongSummary, names: str) -> str:

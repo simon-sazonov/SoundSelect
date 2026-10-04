@@ -68,12 +68,15 @@ class JobQueue:
             self._task(os.fspath(self.lib.home), job_id)
 
     def recover(self) -> int:
-        """Jobs left running when the app last stopped go back in the queue."""
+        """Jobs left running when the app last stopped go back in the queue, and so do queued
+        jobs, in case their batch was saved but never put in the queue. A job queued twice
+        still runs once."""
         stuck = self.lib.jobs_with_status("running")
         for job in stuck:
             self.lib.update_job(job.id, status="queued", step=None, step_label=None, progress=0.0)
-        self.enqueue([job.id for job in stuck])
-        return len(stuck)
+        waiting = self.lib.jobs_with_status("queued")
+        self.enqueue([job.id for job in waiting])
+        return len(waiting)
 
     def _consumer_options(self, workers: int) -> dict:
         return {
