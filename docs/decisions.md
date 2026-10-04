@@ -131,6 +131,43 @@ so another site can't send a form that adds or deletes songs.
 **The Phase 1 gate** is ten of your real chord sheets coming out right. The sample sheets and
 test PDFs in `backend/tests/data` stand in until those arrive.
 
+## Hooks for the next phases
+
+Photos (Phase 2) and sheet music (Phase 3) are built side by side, so the spots both touch
+landed once, before either.
+
+**One OpenCV for everything: `opencv-python-headless` 4.** RapidOCR asks for `opencv-python`
+and homr for the headless build; both installed side by side share one `cv2` folder and break
+homr. A uv override drops `opencv-python`, and everything uses the headless OpenCV 4, which
+needs no screen libraries on the home server.
+
+**onnxruntime below 1.24 on Intel Macs.** onnxruntime 1.24 and later has no Intel Mac wheels,
+though homr asks for 1.24.1 or later. Another override keeps Intel Macs on 1.20 to 1.23 and
+everything else on 1.24.1 or later. uv never builds these from source.
+
+**Extras for the heavy tools.** The photo reader (RapidOCR, onnxruntime, OpenCV, HEIC
+support) is in the main install. Sheet music (`sheetmusic`: homr, music21) and links (`links`:
+yt-dlp) are extras; `uv sync --all-extras` installs everything, and CI does too. Without an
+extra the app still runs: Health says which tools are there, and an item that needs a missing
+one fails with a message saying to install it.
+
+**Pipelines register themselves.** Each phase's package registers its pipeline with
+`register_pipeline`; its name is its job kind ("sheet_music", "song"). Importing a package stays
+cheap: the heavy libraries are imported inside functions. A pipeline can say whether its tools
+are installed (`available`), whether it should read an image (`claims`), and how to draw its
+source pages (`pages`).
+
+**Routing and grouping.** `route` sends each item to a pipeline: text and PDF to chord
+sheets; images to sheet music when it claims them (or `image_mode` says so), else to chord
+sheet photos; videos to sheet music; audio to songs; links by `link_mode`. A group is always
+one song or piece, from files that go to the same pipeline, which must read several files at
+once. Sheet music screenshots in no group make one piece, since a piece's pages are usually
+chosen together.
+
+**Page numbers run across a song's files.** Each kind of file with pages registers how to count
+and draw them; a song's pages are numbered across its files in order, so a two-page PDF then a
+photo gives pages 0, 1 and 2. Drawn pages are kept under the pipeline's name and its inputs.
+
 ## Phase 2
 
 **Photos are read on this computer.** RapidOCR (PaddleOCR's models, run by onnxruntime)

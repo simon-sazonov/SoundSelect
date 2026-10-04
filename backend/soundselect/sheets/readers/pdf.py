@@ -24,7 +24,7 @@ from typing import Any
 from ...core.song import Notice, SourcePage, SourceRef
 from ..lines import is_chord_line, tokenize
 from ..model import SheetText, TextLine
-from . import SheetInput, UnsupportedInput, register
+from . import SheetInput, UnsupportedInput, register, register_pages
 
 PAGE_DPI = 144
 SCALE = PAGE_DPI / 72  # PDF positions are in points, 72 to the inch
@@ -438,6 +438,18 @@ def render_page_array(data: bytes, index: int, scale: float = SCALE) -> Any:
             pdf.close()
 
 
+def page_count(data: bytes) -> int:
+    """How many pages the PDF has."""
+    import pypdfium2 as pdfium
+
+    with _pdfium_lock:
+        pdf = pdfium.PdfDocument(data)
+        try:
+            return len(pdf)
+        finally:
+            pdf.close()
+
+
 def render_page(data: bytes, index: int) -> bytes:
     """One page of a PDF drawn as a PNG at ``PAGE_DPI``, the size the line boxes refer to."""
     import pypdfium2 as pdfium
@@ -453,3 +465,6 @@ def render_page(data: bytes, index: int) -> bytes:
             return buffer.getvalue()
         finally:
             pdf.close()
+
+
+register_pages("pdf", page_count, render_page)

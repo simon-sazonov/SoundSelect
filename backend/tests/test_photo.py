@@ -187,3 +187,25 @@ def test_russian_photo(photos, russian_song):
 def test_tilt_of_a_clean_page_is_zero(photos):
     data = np.asarray(Image.open(photos / "screenshot.png").convert("RGB"))[:, :, ::-1]
     assert image.tilt(np.ascontiguousarray(data)) == 0.0
+
+
+def test_photos_through_the_app(client, photos, found_a_love):
+    """Two photos stacked into one song, and a photo of its own, from upload to page image."""
+    files = [
+        ("files", (name, (photos / name).read_bytes(), "image/png"))
+        for name in ("page2.png", "page1.png", "screenshot.png")
+    ]
+    res = client.post("/api/v1/imports", files=files, data={"groups": "[[1, 0]]"})
+    assert res.status_code == 202, res.text
+    jobs = res.json()["jobs"]
+    assert [(j["name"], j["status"]) for j in jobs] == [
+        ("page1.png, page2.png", "done"),
+        ("screenshot.png", "done"),
+    ]
+    song = client.get(f"/api/v1/songs/{jobs[0]['song_id']}").json()
+    assert song["key"]["concert"] == found_a_love.key.concert.model_dump(mode="json")
+    pages = song["source_pages"]
+    assert [p["index"] for p in pages] == [0, 1]
+    image = client.get(f"/api/v1/songs/{jobs[0]['song_id']}/pages/1.png")
+    assert image.status_code == 200 and image.content.startswith(b"\x89PNG")
+    assert Image.open(io.BytesIO(image.content)).size == (pages[1]["width"], pages[1]["height"])

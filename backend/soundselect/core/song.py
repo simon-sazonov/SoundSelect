@@ -184,7 +184,9 @@ class MelodyNote(Model):
 
 class Melody(Model):
     notes: list[MelodyNote] = Field(default_factory=list)
-    octave_shift: int = Field(0, description="Octaves the melody was moved to fit the range.")
+    octave_shift: int = Field(
+        0, description="Octaves the written melody is moved to fit the comfortable range."
+    )
     source: Literal["audio", "sheet_music"]
 
 
