@@ -8,7 +8,7 @@ column first. Page numbers and web addresses in the page margins are left out.
 
 Each line keeps where it sits on its page (in pixels of the page drawn at ``PAGE_DPI``), so a
 screen can show the reading beside the original. A scanned PDF has pictures instead of text:
-reading those comes with photo reading.
+those pages go through the photo reader.
 """
 
 from __future__ import annotations
@@ -337,6 +337,7 @@ def read_pdf(inp: SheetInput) -> SheetText:
         raise UnsupportedInput("This file isn't a PDF that can be opened.") from exc
 
     lines: list[TextLine] = []
+    by_page: list[list[TextLine]] = []
     pages: list[SourcePage] = []
     scanned: list[int] = []
     unreadable = 0
@@ -351,20 +352,41 @@ def read_pdf(inp: SheetInput) -> SheetText:
                 )
             )
             page_lines = _page_lines(page, number)
-            if not page_lines:
-                if page.images:
-                    scanned.append(number)
-                continue
+            if not page_lines and page.images:
+                scanned.append(number)
             unreadable += sum(line.text.count("(cid:") for line in page_lines)
-            if lines:
-                lines.append(TextLine(text=""))  # page break
-            lines += page_lines
+            by_page.append(page_lines)
+
+    notices: list[Notice] = []
+    no_reader = False
+    if scanned:
+        from .photo import scan_pages
+
+        try:
+            for number, reading in scan_pages(inp.raw, scanned).items():
+                by_page[number] = reading.lines
+                notices += reading.notices
+        except UnsupportedInput:
+            if not any(by_page):
+                raise ScannedPdf(
+                    "This PDF is a scan: its pages are pictures, with no text inside, and the "
+                    "photo reader isn't installed."
+                ) from None
+            no_reader = True
+        else:
+            scanned = [n for n in scanned if not by_page[n]]  # pictures with nothing to read
+    for page_lines in by_page:
+        if not page_lines:
+            continue
+        if lines:
+            lines.append(TextLine(text=""))  # page break
+        lines += page_lines
 
     if not lines:
         if scanned:
             raise ScannedPdf(
-                "This PDF is a scan: its pages are pictures, with no text inside. Reading "
-                "scans comes with photo reading."
+                "This PDF is a scan, and no writing was found on its pages. A sharper scan "
+                "usually reads well."
             )
         raise UnsupportedInput("This PDF has no text in it.")
     if unreadable > 20:
@@ -372,16 +394,23 @@ def read_pdf(inp: SheetInput) -> SheetText:
             "The text in this PDF can't be read: its fonts hide which letters they draw. "
             "Printing it again to a new PDF often fixes that."
         )
-    notices = []
     if scanned:
         which = _numbers(scanned)
         notices.append(
             Notice(
                 level="warning",
                 code="scanned_pages",
-                message=f"Page {which} of the PDF is a picture without text, so it was skipped."
+                message=(
+                    f"Page {which} of the PDF is a picture, and the photo reader isn't "
+                    "installed, so it was skipped."
+                    if len(scanned) == 1
+                    else f"Pages {which} of the PDF are pictures, and the photo reader isn't "
+                    "installed, so they were skipped."
+                )
+                if no_reader
+                else f"No writing was found on page {which} of the PDF, so it was skipped."
                 if len(scanned) == 1
-                else f"Pages {which} of the PDF are pictures without text, so they were skipped.",
+                else f"No writing was found on pages {which} of the PDF, so they were skipped.",
             )
         )
     return SheetText(
@@ -392,6 +421,21 @@ def read_pdf(inp: SheetInput) -> SheetText:
         pages=pages,
         notices=notices,
     )
+
+
+def render_page_array(data: bytes, index: int, scale: float = SCALE) -> Any:
+    """One page of a PDF drawn as an RGB array (for reading a scanned page)."""
+    import numpy as np
+    import pypdfium2 as pdfium
+
+    with _pdfium_lock:
+        pdf = pdfium.PdfDocument(data)
+        try:
+            if not 0 <= index < len(pdf):
+                raise IndexError(f"the PDF has no page {index + 1}")
+            return np.asarray(pdf[index].render(scale=scale).to_pil().convert("RGB"))
+        finally:
+            pdf.close()
 
 
 def render_page(data: bytes, index: int) -> bytes:

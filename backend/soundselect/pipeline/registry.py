@@ -14,6 +14,7 @@ from ..core.song import Corrections, Song
 from ..imports import InputRef
 from ..settings import ViewSettings
 from ..sheets.readers import SheetInput, detect_kind
+from ..sheets.readers.photo import group_input
 from ..sheets.readers.text import decode_text
 from .chord_sheet import CHORD_SHEET, analyze_sheet
 from .runner import Cache, Pipeline, StepEvent
@@ -57,9 +58,14 @@ class PipelineSpec:
 
 
 def _sheet_source(inputs: list[InputRef], read: ReadInput) -> SheetInput:
-    if len(inputs) != 1:
-        raise ValueError("a chord sheet is read from one input")
-    ref = inputs[0]
+    if not inputs:
+        raise ValueError("a chord sheet is read from at least one input")
+    if len(inputs) > 1:  # a group: files that make one song together
+        return group_input([_one_source(ref, read) for ref in inputs])
+    return _one_source(inputs[0], read)
+
+
+def _one_source(ref: InputRef, read: ReadInput) -> SheetInput:
     data = read(ref)
     if ref.kind == "text" and ref.name is None:
         # pasted text, or a file sent without a name (which may be in cp1251)

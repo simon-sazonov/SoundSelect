@@ -1,7 +1,7 @@
 """Reader plug-ins: each turns one kind of input into lines of text with their positions.
 
 Adding a source means adding one reader here and nothing else. Text arrives in Phase 0, PDF in
-Phase 1 and photos in Phase 2.
+Phase 1 and photos (with groups of several files that make one song) in Phase 2.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ class SheetInput:
     data: str | bytes
     name: str | None = None
     kind: str | None = None
+    parts: tuple[SheetInput, ...] = ()  # a group: inputs that make one song together
 
     @classmethod
     def from_path(cls, path: str | os.PathLike[str]) -> SheetInput:
@@ -38,6 +39,8 @@ class SheetInput:
 
     @property
     def raw(self) -> bytes:
+        if self.parts:  # a group is known by what its parts contain, in order
+            return b"".join(hashlib.sha256(p.raw).digest() for p in self.parts)
         return self.data.encode("utf-8") if isinstance(self.data, str) else self.data
 
     def fingerprint(self, reader_kind: str) -> str:
@@ -94,4 +97,4 @@ def read_sheet(inp: SheetInput) -> SheetText:
     return reader(inp)
 
 
-from . import pdf, text  # noqa: E402,F401  (registers the readers)
+from . import pdf, photo, text  # noqa: E402,F401  (registers the readers)

@@ -74,11 +74,11 @@ def test_options_reach_the_song(library, sheet_text):
 
 
 def test_failures_are_explained(library, data_dir, monkeypatch):
-    scanned = (data_dir / "pdf" / "scanned.pdf").read_bytes()
-    job = import_one(library, files=[("scan.pdf", scanned)])
+    job = import_one(library, files=[("scan.jpg", b"\xff\xd8\xff not really a photo")])
     run_job(library, job.id)
     failed = library.job(job.id)
-    assert failed.status == "failed" and failed.error.startswith("This PDF is a scan")
+    assert failed.status == "failed"
+    assert failed.error == "This file isn't a picture that can be opened."
 
     def broken(*args, **kwargs):
         raise ZeroDivisionError("division by zero")
