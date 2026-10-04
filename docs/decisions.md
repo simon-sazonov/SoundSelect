@@ -146,8 +146,9 @@ though homr asks for 1.24.1 or later. Another override keeps Intel Macs on 1.20 
 everything else on 1.24.1 or later. uv never builds these from source.
 
 **Extras for the heavy tools.** The photo reader (RapidOCR, onnxruntime, OpenCV, HEIC
-support) is in the main install. Sheet music (`sheetmusic`: homr, music21) and links (`links`:
-yt-dlp) are extras; `uv sync --all-extras` installs everything, and CI does too. Without an
+support) is in the main install. Sheet music (`sheetmusic`: homr, music21), links (`links`:
+yt-dlp) and audio (`audio`: PyAV, which decodes audio and video files for the song tool) are
+extras; `uv sync --all-extras` installs everything, and CI does too. Without an
 extra the app still runs: Health says which tools are there, and an item that needs a missing
 one fails with a message saying to install it.
 
@@ -206,3 +207,23 @@ from the files' contents in order, so the same photos under other names are the 
 table, the scanned PDF and a song over two pictures all give every chord and the key right,
 each chord within a letter of its place. Reading takes about a second a picture on the
 cloud test machine.
+
+## Before the real sheets
+
+**B or B♭ on Russian sheets without H.** A sheet with H means B♭ by its plain B; a sheet
+without H, with Russian words, no B♭ or A♯ of its own, and chords that fit a key much better
+with B♭ (at least half a point of key fit per chord that changes) is read as B♭, with a
+notice and a "B on the sheet" choice under Fix to undo it; English sheets keep B natural.
+
+**A stated key keeps all its words.** "Тональность: ре минор" and "Key: D minor" are read
+whole, and a line that only starts like a key line ("Key to my heart") stays a lyric.
+
+**Short "Name:" labels.** A line that is just a short name and a colon ("A1:", "B:", "Intro
+riff:") is a section label when chords, a tab or ChordPro follow it, and a title set off by a
+blank line stays the title even when the lyrics run straight into the chords.
+
+**Lowercase chord lines.** A line such as "am  dm" is read as chords when every word is a chord
+once capitalised, and there are two or more of them or Russian lyrics follow.
+
+**Repeat words after chords.** "(2 раза)", "2 times" and "x 2" after chords are read as one
+repeat mark, as "x2" already was.

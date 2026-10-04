@@ -21,6 +21,7 @@ from ..core.keys import Key
 from ..core.names import NAME_SYSTEMS, NameSystem, key_name, note_name
 from ..core.pitch import Pitch
 from ..render.page import song_page
+from ..sheets.parse import reads_differently
 from ..store import Library
 
 router = APIRouter(include_in_schema=False)
@@ -187,6 +188,8 @@ def song_screen(
             pdf_link=f"/api/v1/songs/{song_id}/export?{urlencode({**export, 'format': 'pdf'})}",
             key_options=_key_options(shown),
             sheet_chords=sheet_chords,
+            b_choice=song.corrections.b_is_flat is not None
+            or any(reads_differently(c) for c in sheet_chords),
             corrections=song.corrections,
             fixes=song.corrections.model_dump(mode="json")["chords"],
         )

@@ -66,6 +66,11 @@ class SongPatch(Model):
         None, description="The whole list of chord fixes (send the list with yours added)."
     )
     melody_octave: int | None = Field(None, ge=-3, le=3)
+    b_is_flat: bool | None = Field(
+        None,
+        description="What a plain B on the sheet means: true B♭ (Russian and German sheets), "
+        "false B natural; null reads it from the sheet.",
+    )
 
     def apply(self, current: Corrections) -> Corrections:
         data = current.model_dump()
@@ -192,7 +197,10 @@ def delete_song(lib: Library, song_id: str) -> None:
 def page_image(lib: Library, song_id: str, index: int) -> Path:
     """A page of the song's source drawn as an image (made once, then kept)."""
     record = _record(lib, song_id)
-    spec = get_pipeline(record.pipeline)
+    try:
+        spec = get_pipeline(record.pipeline)
+    except ValueError:  # made by a pipeline this build doesn't have
+        raise NotFound(NO_PAGES) from None
     if spec.pages is None or not record.inputs:
         raise NotFound(NO_PAGES)
     sources = "\n".join(ref.sha or ref.url or "" for ref in record.inputs)

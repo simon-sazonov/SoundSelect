@@ -183,7 +183,8 @@ def test_groups_of_one_kind():
 
 def test_group_refused():
     files = [ref("a.png"), ref("b.jpg")]
-    mixed = plan_jobs([], files, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
+    sheet_and_pdf = [ref("a.png"), ref("b.pdf", "pdf")]
+    mixed = plan_jobs([], sheet_and_pdf, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
     assert mixed[0].kind is None and mixed[0].not_yet == MIXED_GROUP
     lone = plan_jobs([], files, [], [[0, 1]], kinds=["chord_sheet", "chord_sheet"])
     assert lone[0].not_yet == NOT_YET["group"]  # chord sheets can't be stacked yet
@@ -244,3 +245,53 @@ def test_written_melody_for_alto(found_a_love):
     out = apply_instrument(down, "alto_sax", comfortable_low="C4", comfortable_high="C6")
     written = [(n.written, n.out_of_range) for n in out.melody.notes]
     assert written == [("A3", True), ("G3", True), (None, False), ("A5", False)]
+
+
+def test_octave_zero_is_kept(found_a_love):
+    notes = [MelodyNote(concert="C0", start=0, length=1)]
+    song = found_a_love.model_copy(update={"melody": Melody(notes=notes, source="audio")})
+    out = apply_instrument(song, "alto_sax")
+    assert out.melody.notes[0].written == "A0" and out.melody.notes[0].out_of_range
+
+
+def test_photo_group_that_missed_staves_is_sheet_music():
+    files = [ref("p1.png"), ref("p2.png")]
+    plans = plan_jobs(
+        [], files, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"], groupable={"sheet_music"}
+    )
+    assert plans[0].kind == "sheet_music" and plans[0].not_yet is None
+    mixed = [ref("p1.png"), ref("s.pdf", "pdf")]
+    plans = plan_jobs([], mixed, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
+    assert plans[0].not_yet == MIXED_GROUP
+
+
+def test_page_image_of_an_unknown_pipeline(library, found_a_love):
+    ref_ = library.store_input(PNG, "photo", "page.png")
+    song = library.add_song(found_a_love, pipeline="not_in_this_build", inputs=[ref_])
+    with pytest.raises(NotFound, match="no source pages"):
+        service.page_image(library, song.id, 0)
+
+
+def test_photo_group_with_staves_on_one_page(library, data_dir, monkeypatch):
+    """Through the real photo reader: one page claimed as sheet music makes the whole group
+    sheet music; with nothing claimed the group is one chord sheet song."""
+    from soundselect.jobs import run_job
+
+    photos = data_dir / "photos"
+    page1, page2 = ((photos / n).read_bytes() for n in ("page1.png", "page2.png"))
+    files = [("page1.png", page1), ("page2.png", page2)]
+    options = ImportOptions(groups=[[0, 1]])
+
+    spec = fake_spec("sheet_music", claims=lambda data: data == page2)
+    monkeypatch.setitem(registry.PIPELINES, "sheet_music", spec)
+    [job] = service.start_import(library, files=files, options=options).jobs
+    assert job.kind == "sheet_music" and [r.name for r in job.inputs] == ["page1.png", "page2.png"]
+
+    monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
+    [job] = service.start_import(library, files=files, options=options).jobs
+    assert job.kind == "chord_sheet" and len(job.inputs) == 2
+    run_job(library, job.id)
+    done = library.job(job.id)
+    assert done.status == "done", done.error
+    song = service.stored_song(library, done.song_id)
+    assert song.identity.source_name == "page1.png + page2.png"
