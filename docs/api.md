@@ -112,6 +112,9 @@ The stream starts with every job as it is, so a page opened late catches up. `GE
   ```
 
   A chord fix without `line` and `index` changes every occurrence; `to: ""` removes the chord.
+  `b_is_flat` says what a plain B on the sheet means: `true` B♭ (as on Russian and German
+  sheets), `false` B natural, `null` read from the sheet (a sheet with H means B♭ by B; a Russian
+  sheet whose chords fit B♭ much better gets a `b_flat_guess` notice).
 - `DELETE /songs/{id}`: remove it from the library (204).
 
 Instruments and note names are applied when a song is asked for: the saved song never changes

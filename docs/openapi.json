@@ -1989,6 +1989,18 @@
               }
             ],
             "title": "Melody Octave"
+          },
+          "b_is_flat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "B Is Flat",
+            "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet."
           }
         },
         "additionalProperties": false,
@@ -3400,6 +3412,18 @@
               }
             ],
             "title": "Melody Octave"
+          },
+          "b_is_flat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "B Is Flat",
+            "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet."
           }
         },
         "additionalProperties": false,

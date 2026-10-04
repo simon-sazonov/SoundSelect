@@ -302,6 +302,19 @@
           ],
           "default": null,
           "title": "Melody Octave"
+        },
+        "b_is_flat": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet.",
+          "title": "B Is Flat"
         }
       },
       "title": "Corrections",

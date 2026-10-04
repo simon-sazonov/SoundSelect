@@ -227,6 +227,8 @@ def _group_plan(
     refs = [r for r, _ in members if isinstance(r, InputRef)]
     names = ", ".join(r.name or "file" for r in refs)
     found = {k for _, k in members if k is not None}
+    if found == {"chord_sheet", "sheet_music"} and all(r.kind == "photo" for r in refs):
+        found = {"sheet_music"}  # staves weren't found on one of the pages; it's one piece
     if len(found) > 1:
         return JobPlan(refs, names, None, MIXED_GROUP)
     unread = next((r for r, k in members if k is None and isinstance(r, InputRef)), None)

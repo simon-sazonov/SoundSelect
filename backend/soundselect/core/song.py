@@ -215,6 +215,11 @@ class Corrections(Model):
     capo: int | None = Field(None, description="Capo fret (or half steps) instead of the sheet's.")
     chords: list[ChordFix] = Field(default_factory=list)
     melody_octave: int | None = None
+    b_is_flat: bool | None = Field(
+        None,
+        description="What a plain B on the sheet means: true B♭ (Russian and German sheets), "
+        "false B natural; null reads it from the sheet.",
+    )
 
 
 class Notice(Model):
