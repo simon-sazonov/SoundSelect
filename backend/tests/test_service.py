@@ -92,7 +92,8 @@ def test_grouped_photos_wait_for_photo_reading(library):
         options=ImportOptions(groups=[[0, 1]]),
     )
     assert [j.name for j in batch.jobs] == ["p1.jpg, p2.jpg", "p3.png"]
-    assert batch.jobs[0].error.startswith("Stacking several files")
+    # nothing reads photos yet, so the group gets the photos' message
+    assert batch.jobs[0].error.startswith("Photos can't be read yet")
 
 
 def test_library_list(library, sheet_text, data_dir):

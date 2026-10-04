@@ -577,7 +577,7 @@
         },
         "octave_shift": {
           "default": 0,
-          "description": "Octaves the melody was moved to fit the range.",
+          "description": "Octaves the written melody is moved to fit the comfortable range.",
           "title": "Octave Shift",
           "type": "integer"
         },

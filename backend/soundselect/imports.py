@@ -7,6 +7,7 @@ every kind the same way and nothing in the API changes when the readers arrive.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from pathlib import PurePath
 from typing import Literal
@@ -19,6 +20,7 @@ from .sheets.readers import PDF_SUFFIXES, PHOTO_SUFFIXES, TEXT_SUFFIXES
 InputKind = Literal["text", "pdf", "photo", "audio", "video", "link"]
 JobKind = Literal["chord_sheet", "sheet_music", "song"]
 LinkMode = Literal["auto", "sound", "sheet_music"]
+ImageMode = Literal["auto", "chord_sheet", "sheet_music"]
 
 AUDIO_SUFFIXES = {".mp3", ".m4a", ".wav", ".flac", ".ogg", ".oga", ".opus", ".aac", ".aif", ".aiff"}
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm", ".mkv", ".avi"}
@@ -30,7 +32,14 @@ NOT_YET: dict[str, str] = {
     "video": "Sheet music videos come in a later build phase.",
     "link": "Links (YouTube and others) come in a later build phase.",
     "group": "Stacking several files into one song comes with photo reading.",
+    "sheet_music": "Sheet music screenshots can't be read yet: sheet music is a later build phase.",
 }
+MIXED_GROUP = "A group can't mix chord sheets and sheet music."
+
+
+def needs_extras(what: str) -> str:
+    """The message for a reader that is built but whose tools aren't installed."""
+    return f"{what} needs its extra tools: run `uv sync --all-extras`, then start the app again."
 
 
 class InputRef(Model):
@@ -57,6 +66,11 @@ class ImportOptions(Model):
         None,
         description="Files that together make one song, as lists of file positions (from 0); "
         "for photos of a song that runs over two pages. Read from the photo phase on.",
+    )
+    image_mode: ImageMode = Field(
+        "auto",
+        description="What image files are: chord sheet photos or sheet music screenshots; "
+        "auto looks for staves.",
     )
     link_mode: LinkMode = Field(
         "auto",
@@ -143,13 +157,27 @@ def plan_jobs(
     files: list[InputRef | Unreadable],
     links: list[InputRef],
     groups: list[list[int]] | None = None,
+    *,
+    kinds: list[JobKind | None] | None = None,
+    link_kinds: list[JobKind | None] | None = None,
+    groupable: Collection[JobKind] = (),
+    not_yet: Callable[[InputRef], str] | None = None,
 ) -> list[JobPlan]:
-    """One job per song, in the order given: pasted texts, then files, then links.
+    """One job per song or piece, in the order given: pasted texts, then files, then links.
 
-    ``files`` holds an InputRef for each file, or why nothing can read it.
-    ``groups`` stacks files into one song (from the photo phase on); a file in no group is
-    a song of its own.
+    ``files`` holds an InputRef for each file, or why nothing can read it. ``kinds`` and
+    ``link_kinds`` say which job reads each file and link (None: nothing here can yet);
+    without them, text and PDF files are chord sheets and nothing else is read.
+    ``groups`` are files that together make one song or piece, read by a job kind in
+    ``groupable``. Image files read as sheet music and in no group are the screenshots of one
+    piece, so they make one job together. Every other file is a song or piece of its own.
+    ``not_yet`` words why an input can't be read; NOT_YET by default.
     """
+    if kinds is None:
+        kinds = [job_kind(f.kind) if isinstance(f, InputRef) else None for f in files]
+    if link_kinds is None:
+        link_kinds = [None] * len(links)
+    why = not_yet or (lambda ref: NOT_YET[ref.kind])
     plans: list[JobPlan] = [JobPlan([t], t.name or "Pasted text", "chord_sheet") for t in texts]
 
     grouped: dict[int, list[int]] = {}
@@ -158,25 +186,56 @@ def plan_jobs(
             for i in group:
                 grouped[i] = group
     done: set[int] = set()
+    screenshots: JobPlan | None = None  # sheet music images in no group: one piece
     for i, f in enumerate(files):
         if i in done:
             continue
         group = grouped.get(i)
         if group:
             done.update(group)
-            refs = [r for r in (files[j] for j in group) if isinstance(r, InputRef)]
-            names = ", ".join(r.name or "file" for r in refs)
-            plans.append(JobPlan(refs, names, None, NOT_YET["group"]))
+            plans.append(_group_plan(group, files, kinds, groupable, why))
             continue
         if isinstance(f, Unreadable):
             plans.append(JobPlan([], f.name, None, f.message))
             continue
-        kind = job_kind(f.kind)
-        plans.append(JobPlan([f], f.name or "File", kind, None if kind else NOT_YET[f.kind]))
+        kind = kinds[i]
+        if kind == "sheet_music" and f.kind == "photo":
+            if screenshots is None:
+                screenshots = JobPlan([f], f.name or "Screenshot", kind)
+                plans.append(screenshots)
+            else:
+                screenshots.inputs.append(f)
+            continue
+        plans.append(JobPlan([f], f.name or "File", kind, None if kind else why(f)))
+    if screenshots is not None and len(screenshots.inputs) > 1:
+        screenshots.name += f" and {len(screenshots.inputs) - 1} more"
 
-    for link in links:
-        plans.append(JobPlan([link], link.url or "Link", None, NOT_YET["link"]))
+    for link, kind in zip(links, link_kinds, strict=True):
+        plans.append(JobPlan([link], link.url or "Link", kind, None if kind else why(link)))
     return plans
+
+
+def _group_plan(
+    group: list[int],
+    files: list[InputRef | Unreadable],
+    kinds: list[JobKind | None],
+    groupable: Collection[JobKind],
+    why: Callable[[InputRef], str],
+) -> JobPlan:
+    """The job for files that together make one song or piece."""
+    members = [(files[j], kinds[j]) for j in group if isinstance(files[j], InputRef)]
+    refs = [r for r, _ in members if isinstance(r, InputRef)]
+    names = ", ".join(r.name or "file" for r in refs)
+    found = {k for _, k in members if k is not None}
+    if len(found) > 1:
+        return JobPlan(refs, names, None, MIXED_GROUP)
+    unread = next((r for r, k in members if k is None and isinstance(r, InputRef)), None)
+    if unread is not None:
+        return JobPlan(refs, names, None, why(unread))
+    kind = next(iter(found), None)
+    if kind is None or kind not in groupable:
+        return JobPlan(refs, names, None, NOT_YET["group"])
+    return JobPlan(refs, names, kind)
 
 
 def check_groups(groups: list[list[int]] | None, n_files: int) -> str | None:
