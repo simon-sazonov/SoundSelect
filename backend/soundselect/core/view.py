@@ -166,7 +166,7 @@ def _written_melody(melody: Melody, interval: Interval, low: Pitch, high: Pitch)
             notes.append(n.model_copy(update={"written": None, "out_of_range": False}))
             continue
         p = Pitch.parse(n.concert).transpose(interval)
-        p = p.at_octave((p.octave or 4) + melody.octave_shift)
+        p = p.at_octave((p.octave if p.octave is not None else 4) + melody.octave_shift)
         outside = p.midi < low.midi or p.midi > high.midi
         notes.append(n.model_copy(update={"written": str(p), "out_of_range": outside}))
     return melody.model_copy(update={"notes": notes})

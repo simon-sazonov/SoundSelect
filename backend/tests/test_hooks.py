@@ -171,7 +171,8 @@ def test_groups_of_one_kind():
 
 def test_group_refused():
     files = [ref("a.png"), ref("b.jpg")]
-    mixed = plan_jobs([], files, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
+    sheet_and_pdf = [ref("a.png"), ref("b.pdf", "pdf")]
+    mixed = plan_jobs([], sheet_and_pdf, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
     assert mixed[0].kind is None and mixed[0].not_yet == MIXED_GROUP
     lone = plan_jobs([], files, [], [[0, 1]], kinds=["chord_sheet", "chord_sheet"])
     assert lone[0].not_yet == NOT_YET["group"]  # chord sheets can't be stacked yet
@@ -232,3 +233,28 @@ def test_written_melody_for_alto(found_a_love):
     out = apply_instrument(down, "alto_sax", comfortable_low="C4", comfortable_high="C6")
     written = [(n.written, n.out_of_range) for n in out.melody.notes]
     assert written == [("A3", True), ("G3", True), (None, False), ("A5", False)]
+
+
+def test_octave_zero_is_kept(found_a_love):
+    notes = [MelodyNote(concert="C0", start=0, length=1)]
+    song = found_a_love.model_copy(update={"melody": Melody(notes=notes, source="audio")})
+    out = apply_instrument(song, "alto_sax")
+    assert out.melody.notes[0].written == "A0" and out.melody.notes[0].out_of_range
+
+
+def test_photo_group_that_missed_staves_is_sheet_music():
+    files = [ref("p1.png"), ref("p2.png")]
+    plans = plan_jobs(
+        [], files, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"], groupable={"sheet_music"}
+    )
+    assert plans[0].kind == "sheet_music" and plans[0].not_yet is None
+    mixed = [ref("p1.png"), ref("s.pdf", "pdf")]
+    plans = plan_jobs([], mixed, [], [[0, 1]], kinds=["sheet_music", "chord_sheet"])
+    assert plans[0].not_yet == MIXED_GROUP
+
+
+def test_page_image_of_an_unknown_pipeline(library, found_a_love):
+    ref_ = library.store_input(PNG, "photo", "page.png")
+    song = library.add_song(found_a_love, pipeline="not_in_this_build", inputs=[ref_])
+    with pytest.raises(NotFound, match="no source pages"):
+        service.page_image(library, song.id, 0)

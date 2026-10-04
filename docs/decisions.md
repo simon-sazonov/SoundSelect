@@ -168,3 +168,23 @@ chosen together.
 **Page numbers run across a song's files.** Each kind of file with pages registers how to count
 and draw them; a song's pages are numbered across its files in order, so a two-page PDF then a
 photo gives pages 0, 1 and 2. Drawn pages are kept under the pipeline's name and its inputs.
+
+## Before the real sheets
+
+**B or B♭ on Russian sheets without H.** A sheet with H means B♭ by its plain B; a sheet
+without H, with Russian words, no B♭ or A♯ of its own, and chords that fit a key much better
+with B♭ (at least half a point of key fit per chord that changes) is read as B♭, with a
+notice and a "B on the sheet" choice under Fix to undo it; English sheets keep B natural.
+
+**A stated key keeps all its words.** "Тональность: ре минор" and "Key: D minor" are read
+whole, and a line that only starts like a key line ("Key to my heart") stays a lyric.
+
+**Short "Name:" labels.** A line that is just a short name and a colon ("A1:", "B:", "Intro
+riff:") is a section label when chords, a tab or ChordPro follow it, and a title set off by a
+blank line stays the title even when the lyrics run straight into the chords.
+
+**Lowercase chord lines.** A line such as "am  dm" is read as chords when every word is a chord
+once capitalised, and there are two or more of them or Russian lyrics follow.
+
+**Repeat words after chords.** "(2 раза)", "2 times" and "x 2" after chords are read as one
+repeat mark, as "x2" already was.
