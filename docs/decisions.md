@@ -130,3 +130,54 @@ so another site can't send a form that adds or deletes songs.
 
 **The Phase 1 gate** is ten of your real chord sheets coming out right. The sample sheets and
 test PDFs in `backend/tests/data` stand in until those arrive.
+
+## Phase 3
+
+**One piece from many screenshots.** A sheet music video shows a few lines at a time, and each
+new view repeats the last lines of the one before. The views are cut into systems (staves joined
+by a line at their left edge stay together, so piano music keeps its pairs), and each new view's
+first lines are matched against the previous view's last ones by picture; everything after the
+match is new. When a line was cut off by the edge of one view, the uncut copy is kept. All lines
+are then laid out on A4 pages at one staff size: the clean copy, ready in about a second.
+
+**Videos are read by OpenCV, not ffmpeg.** OpenCV's wheels can open MP4 and WebM files
+themselves, so nothing else needs installing on a Mac without Homebrew packages. Two frames a
+second are enough: a stretch of frames that hardly changes is one view, fades and page turns are
+skipped, and the pixel median over a view's frames removes a moving playback cursor. Links are
+downloaded picture-only (no sound, up to 1080p, one file so no merging) by the shared
+`soundselect.links` module, which the song tool reuses for the sound.
+
+**homr reads the notes at our staff positions.** Handing homr the staves the stitching already
+found skips its own staff finder, which is slower and misses staves in small video pictures
+(82% of notes right at 480p against 94% this way). Its `--read-staff-positions` option crashes in
+0.7, so its note reader is called directly. homr is AGPL-3.0, fine for personal use, and
+downloads its models (about 300 MB) the first time it reads. It runs on onnxruntime 1.23 on
+Intel Macs (the last version with Intel Mac wheels), with the same results on the test pieces.
+
+**Chord names by OCR, placed by barlines.** RapidOCR reads the strip above each system's top
+staff, cut to the staff's width (the text finder misses lone letters in a page-wide strip). A
+chord's bar is the number of barlines to its left, and its beat the note nearest its place in the
+bar. A music-font flat often comes back as "2" or is dropped altogether: "B2" is read as B♭, and
+a lone letter whose box is wider than a letter gets the flat or sharp back from the number of
+upright strokes after it (one is a flat, two a sharp). Letters much smaller than the chord names
+(fingerings, rehearsal letters) are left out, and so is anything over the clef.
+
+**The library keeps the piece in concert pitch.** A page whose part name says it is for alto sax
+(or another saxophone) is moved to concert pitch first, so it is not transposed twice;
+`Corrections.page_instrument` fixes a wrong guess ("concert" or an instrument). The piece for the
+player is made from the concert score with the interval the music core chose for the song's key,
+so the notation, the key and the chords always agree. The key comes from the key signature: its
+major key or the relative minor, whichever the chords and the last note point to.
+
+**Two PDFs, as the plan says.** The clean copy is the joined screenshots exactly as the video
+showed them. The re-engraved piece is drawn by Verovio on A4 pages and printed by WeasyPrint like
+every other page, with note names under the notes when asked for (Russian by default).
+
+**What the check screen is for.** homr doesn't read lyrics or 1st and 2nd ending brackets yet, and
+on the test page it added two fermatas and an ornament that aren't there, so every sheet music
+song carries a note to check it against the original, and the pages call returns the clean copy
+with a box for every line.
+
+**The pictures a piece is made from live in the library folder** (`sheetmusic/`, by SHA-256),
+so a saved step points at them by name and a correction never reads the pictures again. The
+clean copy's page list is kept beside them, so its pages and PDF come back without re-reading.

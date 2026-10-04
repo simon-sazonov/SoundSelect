@@ -59,6 +59,11 @@ class SongPatch(Model):
         None, description="The whole list of chord fixes (send the list with yours added)."
     )
     melody_octave: int | None = Field(None, ge=-3, le=3)
+    page_instrument: str | None = Field(
+        None,
+        description="Sheet music: the instrument the page is written for ('alto_sax'), or "
+        "'concert' for concert pitch; null goes back to what was read from the page.",
+    )
 
     def apply(self, current: Corrections) -> Corrections:
         data = current.model_dump()
@@ -79,6 +84,15 @@ def check_key(text: str | None) -> None:
         Key.parse(text)
     except ValueError:
         raise BadRequest(f"Can't read {text!r} as a key. Try 'Bb', 'F#m' or 'ля минор'.") from None
+
+
+def check_page_instrument(name: str | None) -> None:
+    if name is None:
+        return
+    try:
+        get_instrument(name)
+    except (KeyError, ValueError):
+        raise BadRequest(f"Unknown instrument {name!r}.") from None
 
 
 def check_chord_fixes(fixes: list[ChordFix]) -> None:
@@ -171,6 +185,7 @@ def correct_song(
     with the current version of every step, keeping the corrections."""
     check_key(patch.key)
     check_chord_fixes(patch.chords or [])
+    check_page_instrument(patch.page_instrument)
     record = _record(lib, song_id)
     corrections = patch.apply(record.corrections)
     song = recompute(lib, record, corrections)

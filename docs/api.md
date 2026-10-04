@@ -111,6 +111,7 @@ gives one part of the song on the staff:
 | `chord_notes` | Each chord's notes |
 | `all` | All of the above |
 | `chord` | One chord (`chord=Gm`, its concert symbol) with its notes and scale |
+| `sheet` | Sheet music only: the whole piece as read from the pictures, drawn fresh |
 
 MusicXML is what the front end draws with Verovio in the browser, so the music reflows to the
 screen; `svg` is the server's drawing of it. Note names, when asked for, sit under the notes.
@@ -120,6 +121,10 @@ screen; `svg` is the server's drawing of it. Note names, when asked for, sit und
 - `GET /songs/{id}/export?format=pdf|html|musicxml|json|txt&names=&view=&instrument=`: the song
   page as PDF or HTML, the staves as MusicXML (opens in MuseScore), the Song result as JSON, or
   a text summary. MIDI answers 501 until it is built.
+- Sheet music (a song with `sheet_music`): `format=pdf` is the piece drawn fresh on A4 pages,
+  written for the instrument (or `view=concert`) with note names under the notes when asked for;
+  `format=musicxml` is that piece; `format=clean` is the clean copy, the joined screenshots on A4
+  pages as the video showed them. Other songs answer 404 to `clean`.
 - `GET /batches/{id}/songbook?format=pdf|html&names=&view=&instrument=`: the batch's finished
   songs in one document with a contents page, each song starting a new page.
 
@@ -128,7 +133,8 @@ screen; `svg` is the server's drawing of it. Note names, when asked for, sit und
 `GET /songs/{id}/pages` lists the source's pages (`image` URLs, with width and height) and where
 each line of the song sits on them: `line` counts lines across the whole song, as chord fixes
 do, and `box` is `x0, y0, x1, y1` in pixels of that page image. `GET
-/songs/{id}/pages/{n}.png` is the page itself (144 dpi). Pasted text has no pages.
+/songs/{id}/pages/{n}.png` is the page itself (144 dpi). Pasted text has no pages. For sheet
+music the pages are the clean copy (300 dpi) and each line is one line of music (a system).
 
 ## Settings and the app
 

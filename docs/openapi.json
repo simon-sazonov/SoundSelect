@@ -890,7 +890,7 @@
           "songs"
         ],
         "summary": "Get Score",
-        "description": "One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:\nthe key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, or\none chord with its notes and scale.",
+        "description": "One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:\nthe key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, or\none chord with its notes and scale. For sheet music, part=sheet is the whole piece as read,\ndrawn fresh.",
         "operationId": "get_score_api_v1_songs__song_id__score_get",
         "parameters": [
           {
@@ -913,7 +913,8 @@
                 "chord_scales",
                 "chord_notes",
                 "all",
-                "chord"
+                "chord",
+                "sheet"
               ],
               "type": "string",
               "default": "all",
@@ -1060,7 +1061,7 @@
           "songs"
         ],
         "summary": "Export Song",
-        "description": "Download the song: the song page as PDF or HTML, the staves as MusicXML (opens in\nMuseScore), the Song result as JSON, or a text summary.",
+        "description": "Download the song: the song page as PDF or HTML, the staves as MusicXML (opens in\nMuseScore), the Song result as JSON, or a text summary. Sheet music downloads its piece\ndrawn fresh as PDF or MusicXML, and its clean copy (the joined screenshots) as 'clean'.",
         "operationId": "export_song_api_v1_songs__song_id__export_get",
         "parameters": [
           {
@@ -1083,7 +1084,8 @@
                 "musicxml",
                 "json",
                 "txt",
-                "midi"
+                "midi",
+                "clean"
               ],
               "type": "string",
               "default": "pdf",
@@ -1979,6 +1981,18 @@
               }
             ],
             "title": "Melody Octave"
+          },
+          "page_instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Instrument",
+            "description": "Sheet music: the instrument the page is written for ('alto_sax', or 'concert' for concert pitch), instead of what was read from its part name."
           }
         },
         "additionalProperties": false,
@@ -3131,6 +3145,52 @@
         "type": "object",
         "title": "Settings"
       },
+      "SheetMusicInfo": {
+        "properties": {
+          "page_instrument": {
+            "type": "string",
+            "title": "Page Instrument",
+            "description": "The instrument the page is written for: 'concert' for concert pitch, or e.g. 'alto_sax'. A page already written for alto is not transposed twice.",
+            "default": "concert"
+          },
+          "part_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Part Name",
+            "description": "The part name as read on the page."
+          },
+          "systems": {
+            "type": "integer",
+            "title": "Systems",
+            "description": "Lines of music (systems) kept after joining the views."
+          },
+          "measures": {
+            "type": "integer",
+            "title": "Measures",
+            "description": "Bars read."
+          },
+          "views": {
+            "type": "integer",
+            "title": "Views",
+            "description": "Screenshots, or views taken from the video, that were used."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "systems",
+          "measures",
+          "views"
+        ],
+        "title": "SheetMusicInfo",
+        "description": "What a piece of sheet music was read from and how (Phase 3)."
+      },
       "Song": {
         "properties": {
           "kind": {
@@ -3237,6 +3297,17 @@
             },
             "type": "array",
             "title": "Source Pages"
+          },
+          "sheet_music": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SheetMusicInfo"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Present for sheet music."
           },
           "versions": {
             "additionalProperties": {
@@ -3379,6 +3450,18 @@
               }
             ],
             "title": "Melody Octave"
+          },
+          "page_instrument": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Instrument",
+            "description": "Sheet music: the instrument the page is written for ('alto_sax'), or 'concert' for concert pitch; null goes back to what was read from the page."
           }
         },
         "additionalProperties": false,
