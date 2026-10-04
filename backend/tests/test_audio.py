@@ -362,30 +362,3 @@ def test_ready_only_with_the_engines(monkeypatch):
     assert registry.route("audio") is None
     message = registry.not_yet_message(InputRef(kind="audio", name="a.mp3"))
     assert "uv sync --all-extras" in message
-
-
-# The melody on the staff (a handoff to render/)
-
-
-def test_melody_score(song_tool):
-    from xml.dom import minidom
-
-    import verovio
-
-    from soundselect.audio.score import melody_xml
-
-    data, _ = song_tool
-    song = song_pipeline.analyze_song(SongSource("audio", data, "tune.wav"))
-    notes = [n.model_copy(update={"start": 3.0, "length": 2.5}) for n in song.melody.notes[:1]]
-    notes[0] = notes[0].model_copy(update={"confidence": 0.1})
-    song = song.model_copy(update={"melody": song.melody.model_copy(update={"notes": notes})})
-    xml = melody_xml(song, "russian")
-    doc = minidom.parseString(xml.split("\n", 2)[2])
-    measures = doc.getElementsByTagName("measure")
-    assert len(measures) == 2  # a note from beat 4 for 2.5 beats crosses into bar 2
-    ties = [t.getAttribute("type") for t in doc.getElementsByTagName("tie")]
-    assert ties == ["start", "stop"]
-    assert 'color="#C0392B"' in xml and "соль" in xml  # doubtful, and G4 named in Russian
-    assert doc.getElementsByTagName("fifths")[0].firstChild.data == "1"  # G major for alto
-    tk = verovio.toolkit()
-    assert tk.loadData(xml)

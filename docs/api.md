@@ -131,7 +131,8 @@ gives one part of the song on the staff:
 | `scales` | Every whole-song scale |
 | `chord_scales` | A scale over each chord |
 | `chord_notes` | Each chord's notes |
-| `all` | All of the above |
+| `melody` | The melody (songs from recordings) in bars of its time signature, with rests, ties and the tempo; doubtful notes are red |
+| `all` | All of the above, the melody first |
 | `chord` | One chord (`chord=Gm`, its concert symbol) with its notes and scale |
 | `sheet` | Sheet music only: the whole piece as read from the pictures, drawn fresh |
 

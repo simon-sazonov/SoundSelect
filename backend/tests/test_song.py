@@ -99,7 +99,7 @@ def test_json_round_trip(found_a_love):
     assert Song.model_validate_json(found_a_love.model_dump_json()) == found_a_love
 
 
-@pytest.mark.parametrize("part", PARTS)
+@pytest.mark.parametrize("part", [p for p in PARTS if p != "melody"])  # see test_melody.py
 def test_musicxml_parts_parse_and_draw(found_a_love, part):
     xml = song_score(found_a_love, part, names="russian")
     root = ET.fromstring(xml.encode())

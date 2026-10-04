@@ -153,14 +153,25 @@ def test_page_image_through_a_pipeline_hook(library, found_a_love, monkeypatch):
 # Health
 
 
-def test_health_tools(client, monkeypatch, without_photos):
+def test_health_tools(client, monkeypatch, without_photos, without_sheet_music, without_song):
+    import importlib.util
+
+    find_spec = importlib.util.find_spec
+
+    def without_links(name, *args):
+        return None if name == "soundselect.links" else find_spec(name, *args)
+
+    monkeypatch.setattr(importlib.util, "find_spec", without_links)
     tools = client.get("/api/v1/health").json()["tools"]
     assert tools["photo_reading"] is tools["sheet_music"] is tools["audio"] is False
-    assert tools["links"] is False
+    assert tools["links"] is False  # no link downloader
     monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
     tools = client.get("/api/v1/health").json()["tools"]
     assert tools["sheet_music"] is True and tools["audio"] is False
-    assert tools["links"] is True  # yt-dlp comes with the extras
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec)
+    expected = find_spec("yt_dlp") is not None  # the downloader is built; yt-dlp is an extra
+    assert client.get("/api/v1/health").json()["tools"]["links"] is expected
 
 
 # Planning jobs

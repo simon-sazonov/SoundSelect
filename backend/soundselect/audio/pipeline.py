@@ -20,6 +20,7 @@ from ..core.keys import Key
 from ..core.pitch import Pitch
 from ..core.ranges import fit_melody
 from ..core.song import (
+    DOUBTFUL,
     Corrections,
     Identity,
     KeyResult,
@@ -51,7 +52,6 @@ SONG_VERSION = "1"
 ANALYSIS_RATE = 22050
 SEPARATION_RATE = 44100
 QUIET_VOICE = 0.04  # below this share of the sound, the song has no singing to follow
-DOUBTFUL = 0.4  # notes heard less clearly than this are marked for checking
 TUNING_NOTICE = 15.0  # cents
 LINKS_MISSING = (
     "Links can't be read yet: YouTube downloads come with the sheet music build phase. "

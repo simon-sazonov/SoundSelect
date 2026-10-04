@@ -333,3 +333,31 @@ link job fails with a message that says so.
 
 **Docker Compose** runs the app and one worker on one library volume; songs take minutes, so
 they run one at a time in the worker and the app stays quick.
+
+## The melody on the staff
+
+**Bars, rests and ties.** The melody comes as notes on a sixteenth grid (Song.melody, from the
+song tool), and the page writes it in bars of Song.timing's time signature with the tempo
+above the first bar. Gaps are rests. A note is split, and tied, where it crosses a bar line or
+would hide a beat: a value of a beat or longer starts on a beat (or, a beat long, on the half
+beat between two: eighth, quarter, eighth), and a shorter value stays inside its beat. Rests
+are plainer still, never dotted, and a half rest only on beat 1 or 3 of 4/4. A tied note
+carries its accidental over the bar line, and its name sits under the first note only.
+
+**Beams and empty bars.** Eighths and sixteenths are beamed beat by beat, with a second beam or
+a hook for sixteenths. An empty bar is a whole rest in the middle of the bar, and a run of
+empty bars (an instrumental part) is one multi-bar rest with its count above it.
+
+**Doubtful notes.** Notes heard with less than 0.4 confidence (core.song.DOUBTFUL) are drawn
+in red, with a line above the melody saying how many there are and that the melody is a draft
+to check by ear.
+
+**Where it shows.** The melody comes right after the key's pentatonic on the song page, the PDF
+and the songbook, drawn line by line so a long melody breaks between lines on paper. The score
+API's "melody" part has it alone, and "all" starts with it, then the scales on a new line. The
+Fix panel offers the melody's octave (Corrections.melody_octave: "Fit my range" or a fixed
+number of octaves from the plain transposition).
+
+**Names in PDFs.** Names under the staff now ask for the serif font the drawing engine measured
+them with (Liberation Serif, or Times New Roman on a Mac). Asking for "Times, serif" made the
+PDF maker fall back to a wider font, and names under quick notes ran into each other.

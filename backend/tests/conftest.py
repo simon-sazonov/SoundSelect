@@ -26,6 +26,28 @@ def found_a_love() -> Song:
 
 
 @pytest.fixture
+def add_melody(found_a_love):
+    """Give the sample song (B♭ major, G major for alto) a melody from a recording, as
+    (concert, start, length) or (concert, start, length, confidence) notes in beats."""
+    from soundselect.core.song import Melody, MelodyNote, Timing
+    from soundselect.core.view import apply_instrument
+
+    def add(notes, time="4/4", tempo=96.0):
+        melody = Melody(
+            notes=[
+                MelodyNote(concert=c, start=s, length=n, confidence=rest[0] if rest else 0.9)
+                for c, s, n, *rest in notes
+            ],
+            source="audio",
+        )
+        timing = Timing(tempo=tempo, time_signature=time)
+        song = found_a_love.model_copy(update={"melody": melody, "timing": timing})
+        return apply_instrument(song, "alto_sax")
+
+    return add
+
+
+@pytest.fixture
 def russian_song() -> Song:
     return _song("russian_h.txt")
 

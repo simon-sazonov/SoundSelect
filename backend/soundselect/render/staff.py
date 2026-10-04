@@ -33,6 +33,7 @@ BASE_OPTIONS: dict[str, Any] = {
     "pageMarginBottom": 10,
     "pageHeight": 60000,
 }
+LINE_HEIGHT = 300  # a page shorter than two lines of music holds one line
 
 
 def _get_toolkit() -> verovio.toolkit:
@@ -48,8 +49,19 @@ def _get_toolkit() -> verovio.toolkit:
     return _toolkit
 
 
-def draw(musicxml: str, *, width: int = 2000, scale: int = 40, wrap: bool = True) -> str:
-    """One SVG for a whole (short) score. ``width`` is the line width before scaling."""
+def draw(
+    musicxml: str,
+    *,
+    width: int = 2000,
+    scale: int = 40,
+    wrap: bool = True,
+    by_line: bool = False,
+) -> str:
+    """One SVG for a whole (short) score. ``width`` is the line width before scaling.
+
+    ``by_line`` draws each line of music as an SVG of its own, so a long score (a melody) can
+    break between lines when it is printed.
+    """
     with _lock:
         tk = _get_toolkit()
         tk.setOptions(
@@ -58,6 +70,7 @@ def draw(musicxml: str, *, width: int = 2000, scale: int = 40, wrap: bool = True
                 "pageWidth": width,
                 "scale": scale,
                 "breaks": "auto" if wrap else "none",
+                **({"pageHeight": LINE_HEIGHT} if by_line else {}),
             }
         )
         if not tk.loadData(musicxml):
@@ -94,6 +107,9 @@ def music_font_css() -> str:
     return _FONT_CSS
 
 
+TEXT_FONTS = "'Liberation Serif', 'Times New Roman', Times, serif"
+
+
 def fit_svg(svg: str) -> str:
     """Give the SVG its natural width, let it shrink to fit, and make the inner drawing fill it."""
     m = re.search(r'<svg viewBox="0 0 ([\d.]+) ([\d.]+)"', svg)
@@ -104,8 +120,11 @@ def fit_svg(svg: str) -> str:
             f'<svg class="staff" width="{w}px" height="{h}px" viewBox="0 0 {w} {h}"',
             1,
         )
-    return svg.replace(
+    svg = svg.replace(
         '<svg class="definition-scale"',
         '<svg class="definition-scale" width="100%" height="100%"',
         1,
     )
+    # Names and bar numbers in the font the drawing engine measured them with; the PDF maker
+    # reads "Times, serif" as one unknown font and falls back to a wider one, so names collide.
+    return svg.replace('font-family="Times, serif"', f'font-family="{TEXT_FONTS}"')

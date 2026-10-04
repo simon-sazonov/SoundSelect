@@ -890,7 +890,7 @@
           "songs"
         ],
         "summary": "Get Score",
-        "description": "One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:\nthe key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, or\none chord with its notes and scale. For sheet music, part=sheet is the whole piece as read,\ndrawn fresh.",
+        "description": "One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:\nthe key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, the\nmelody, or one chord with its notes and scale. For sheet music, part=sheet is the whole\npiece as read, drawn fresh.",
         "operationId": "get_score_api_v1_songs__song_id__score_get",
         "parameters": [
           {
@@ -912,6 +912,7 @@
                 "scales",
                 "chord_scales",
                 "chord_notes",
+                "melody",
                 "all",
                 "chord",
                 "sheet"
@@ -2880,7 +2881,8 @@
                 "type": "null"
               }
             ],
-            "title": "Confidence"
+            "title": "Confidence",
+            "description": "How surely the note was heard, 0 to 1; below 0.4 it is doubtful."
           },
           "out_of_range": {
             "type": "boolean",
