@@ -72,19 +72,14 @@ def _download(source: SongSource) -> tuple[Path, dict[str, Any]]:
         from .. import links
     except ImportError:
         raise UnsupportedInput(LINKS_MISSING) from None
-    if not hasattr(links, "download"):
-        raise UnsupportedInput(LINKS_MISSING)
     meta: dict[str, Any] = {}
     if saved is None:
-        got = Path(links.download(source.url, want="audio"))
-        saved = folder / f"download{got.suffix}"
-        if got != saved:
-            saved.write_bytes(got.read_bytes())
-        if hasattr(links, "info"):
-            try:
-                meta = dict(links.info(source.url) or {})
-            except Exception:
-                meta = {}
+        got = links.download(source.url, folder, want="audio")
+        assert got.path is not None
+        saved = folder / f"download{got.path.suffix}"
+        if got.path != saved:
+            got.path.replace(saved)
+        meta = {"title": got.title, "uploader": got.uploader}
         import json
 
         meta_file.write_text(json.dumps({k: meta.get(k) for k in _META_KEYS}), encoding="utf-8")

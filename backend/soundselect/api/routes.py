@@ -37,8 +37,10 @@ from .errors import ERRORS, ApiError, ErrorResponse
 router = APIRouter()
 
 PitchView = Literal["written", "concert"]
-ScorePart = Literal["headline", "scales", "chord_scales", "chord_notes", "melody", "all", "chord"]
-ExportFormat = Literal["pdf", "html", "musicxml", "json", "txt", "midi"]
+ScorePart = Literal[
+    "headline", "scales", "chord_scales", "chord_notes", "melody", "all", "chord", "sheet"
+]
+ExportFormat = Literal["pdf", "html", "musicxml", "json", "txt", "midi", "clean"]
 MUSICXML = "application/vnd.recordare.musicxml+xml"
 POLL_SECONDS = 0.25
 
@@ -346,11 +348,24 @@ def get_score(
 ) -> Response:
     """One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:
     the key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, the
-    melody, or one chord with its notes and scale."""
+    melody, or one chord with its notes and scale. For sheet music, part=sheet is the whole
+    piece as read, drawn fresh."""
     from ..render.scores import chord_score
 
     song = service.get_song(lib, song_id, instrument=instrument)
     shown = _names(lib, names)
+    if part == "sheet":  # Phase 3: the piece read from sheet music
+        from ..sheetmusic import engrave
+
+        xml = engrave.piece_xml(song, engrave.concert_xml(lib, song_id), view=view, names=shown)
+        if format == "svg":
+            from ..render.staff import music_font_css
+
+            svg = engrave.piece_svg(xml)
+            style = f"<style>{music_font_css()}</style>"
+            svg = svg.replace(">", ">" + style, 1) if svg.startswith("<svg") else svg
+            return Response(svg, media_type="image/svg+xml")
+        return Response(xml, media_type=MUSICXML)
     if part == "chord":
         info = song.chord_info(chord or "")
         if info is None:
@@ -398,13 +413,23 @@ def export_song(
     instrument: InstrumentParam = None,
 ) -> Response:
     """Download the song: the song page as PDF or HTML, the staves as MusicXML (opens in
-    MuseScore), the Song result as JSON, or a text summary."""
+    MuseScore), the Song result as JSON, or a text summary. Sheet music downloads its piece
+    drawn fresh as PDF or MusicXML, and its clean copy (the joined screenshots) as 'clean'."""
     shown = _names(lib, names)
     song = service.get_song(lib, song_id, instrument=instrument, names=shown)
     written = view == "written"
     title = song.identity.title
     if format == "midi":
         raise ApiError(501, "not_built", "MIDI export comes in a later build phase.")
+    if format == "clean" and song.sheet_music is None:
+        raise service.NotFound("Only sheet music has a clean copy.")
+    if song.sheet_music is not None and format in ("pdf", "musicxml", "clean"):
+        body, media = _sheet_music_file(lib, song, format, shown, view)
+        suffix = "pdf" if format == "clean" else format
+        stem = f"{title or 'song'} (clean copy)" if format == "clean" else title
+        return Response(
+            body, media_type=media, headers={"Content-Disposition": _attachment(stem, suffix)}
+        )
     if format in ("pdf", "html"):
         from ..render.page import song_page
 
@@ -430,6 +455,26 @@ def export_song(
     return Response(
         body, media_type=media, headers={"Content-Disposition": _attachment(title, suffix)}
     )
+
+
+def _sheet_music_file(
+    lib: Library, song: Song, format: str, names: NameSystem, view: PitchView
+) -> tuple[bytes, str]:
+    """Phase 3: the piece drawn fresh (PDF or MusicXML) or its clean copy (PDF)."""
+    from ..sheetmusic import engrave
+    from ..sheetmusic.pipeline import clean_pdf
+    from ..sheetmusic.spec import source_of
+
+    assert song.id is not None
+    if format == "clean":
+        record = lib.song_record(song.id)
+        if record is None:
+            raise service.NotFound(f"No song with id {song.id!r}.")
+        return clean_pdf(source_of(record.inputs, lib.read_input)), "application/pdf"
+    xml = engrave.piece_xml(song, engrave.concert_xml(lib, song.id), view=view, names=names)
+    if format == "musicxml":
+        return xml.encode(), MUSICXML
+    return engrave.piece_pdf(xml, song.identity.title), "application/pdf"
 
 
 class PageImage(Model):

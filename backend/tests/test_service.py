@@ -49,7 +49,7 @@ def test_large_file(library, monkeypatch):
         service.start_import(library, files=[("big.pdf", b"%PDF-" + b"0" * 10)])
 
 
-@pytest.mark.usefixtures("without_song")
+@pytest.mark.usefixtures("without_song", "without_sheet_music")
 def test_every_item_gets_a_job(library, sheet_text, data_dir):
     pdf = (data_dir / "pdf" / "found_a_love_mono.pdf").read_bytes()
     batch = service.start_import(

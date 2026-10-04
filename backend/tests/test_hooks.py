@@ -32,7 +32,7 @@ def sheet_music(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _without_song(without_song):
+def _without_song(without_song, without_sheet_music):
     """These tests start from the hooks alone; each adds the pipelines it needs."""
 
 
@@ -153,24 +153,25 @@ def test_page_image_through_a_pipeline_hook(library, found_a_love, monkeypatch):
 # Health
 
 
-def test_health_tools(client, monkeypatch, without_photos):
-    tools = client.get("/api/v1/health").json()["tools"]
-    assert tools["photo_reading"] is tools["sheet_music"] is tools["audio"] is False
-    assert tools["links"] is False
-    monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
-    tools = client.get("/api/v1/health").json()["tools"]
-    assert tools["sheet_music"] is True and tools["audio"] is False
-    assert tools["links"] is False  # yt-dlp is installed, but no link downloader is built yet
-
+def test_health_tools(client, monkeypatch, without_photos, without_sheet_music, without_song):
     import importlib.util
 
     find_spec = importlib.util.find_spec
 
-    def with_links(name, *args):
-        return object() if name == "soundselect.links" else find_spec(name, *args)
+    def without_links(name, *args):
+        return None if name == "soundselect.links" else find_spec(name, *args)
 
-    monkeypatch.setattr(importlib.util, "find_spec", with_links)
-    assert client.get("/api/v1/health").json()["tools"]["links"] is True
+    monkeypatch.setattr(importlib.util, "find_spec", without_links)
+    tools = client.get("/api/v1/health").json()["tools"]
+    assert tools["photo_reading"] is tools["sheet_music"] is tools["audio"] is False
+    assert tools["links"] is False  # no link downloader
+    monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
+    tools = client.get("/api/v1/health").json()["tools"]
+    assert tools["sheet_music"] is True and tools["audio"] is False
+
+    monkeypatch.setattr(importlib.util, "find_spec", find_spec)
+    expected = find_spec("yt_dlp") is not None  # the downloader is built; yt-dlp is an extra
+    assert client.get("/api/v1/health").json()["tools"]["links"] is expected
 
 
 # Planning jobs

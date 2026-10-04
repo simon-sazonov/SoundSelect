@@ -303,6 +303,19 @@
           "default": null,
           "title": "Melody Octave"
         },
+        "page_instrument": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sheet music: the instrument the page is written for ('alto_sax', or 'concert' for concert pitch), instead of what was read from its part name.",
+          "title": "Page Instrument"
+        },
         "b_is_flat": {
           "anyOf": [
             {
@@ -856,6 +869,53 @@
       "title": "Section",
       "type": "object"
     },
+    "SheetMusicInfo": {
+      "additionalProperties": false,
+      "description": "What a piece of sheet music was read from and how (Phase 3).",
+      "properties": {
+        "page_instrument": {
+          "default": "concert",
+          "description": "The instrument the page is written for: 'concert' for concert pitch, or e.g. 'alto_sax'. A page already written for alto is not transposed twice.",
+          "title": "Page Instrument",
+          "type": "string"
+        },
+        "part_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The part name as read on the page.",
+          "title": "Part Name"
+        },
+        "systems": {
+          "description": "Lines of music (systems) kept after joining the views.",
+          "title": "Systems",
+          "type": "integer"
+        },
+        "measures": {
+          "description": "Bars read.",
+          "title": "Measures",
+          "type": "integer"
+        },
+        "views": {
+          "description": "Screenshots, or views taken from the video, that were used.",
+          "title": "Views",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "systems",
+        "measures",
+        "views"
+      ],
+      "title": "SheetMusicInfo",
+      "type": "object"
+    },
     "SourcePage": {
       "additionalProperties": false,
       "properties": {
@@ -1146,6 +1206,18 @@
       },
       "title": "Source Pages",
       "type": "array"
+    },
+    "sheet_music": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SheetMusicInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Present for sheet music."
     },
     "versions": {
       "additionalProperties": {

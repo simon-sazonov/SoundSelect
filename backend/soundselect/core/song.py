@@ -220,6 +220,11 @@ class Corrections(Model):
     capo: int | None = Field(None, description="Capo fret (or half steps) instead of the sheet's.")
     chords: list[ChordFix] = Field(default_factory=list)
     melody_octave: int | None = None
+    page_instrument: str | None = Field(
+        None,
+        description="Sheet music: the instrument the page is written for ('alto_sax', or "
+        "'concert' for concert pitch), instead of what was read from its part name.",
+    )
     b_is_flat: bool | None = Field(
         None,
         description="What a plain B on the sheet means: true B♭ (Russian and German sheets), "
@@ -241,6 +246,20 @@ class SourcePage(Model):
     height: int | None = None
 
 
+class SheetMusicInfo(Model):
+    """What a piece of sheet music was read from and how (Phase 3)."""
+
+    page_instrument: str = Field(
+        "concert",
+        description="The instrument the page is written for: 'concert' for concert pitch, or "
+        "e.g. 'alto_sax'. A page already written for alto is not transposed twice.",
+    )
+    part_name: str | None = Field(None, description="The part name as read on the page.")
+    systems: int = Field(description="Lines of music (systems) kept after joining the views.")
+    measures: int = Field(description="Bars read.")
+    views: int = Field(description="Screenshots, or views taken from the video, that were used.")
+
+
 class Song(Model):
     kind: Literal["song"] = "song"
     schema_version: int = SCHEMA_VERSION
@@ -259,6 +278,7 @@ class Song(Model):
     corrections: Corrections = Field(default_factory=Corrections)
     notes: list[Notice] = Field(default_factory=list, description="Notes to the player.")
     source_pages: list[SourcePage] = Field(default_factory=list)
+    sheet_music: SheetMusicInfo | None = Field(None, description="Present for sheet music.")
     versions: dict[str, str] = Field(
         default_factory=dict, description="Version of each step that produced this result."
     )

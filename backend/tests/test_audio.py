@@ -333,8 +333,14 @@ def test_import_an_audio_file(song_tool, library):
     assert library.job(again.jobs[0].id).reused
 
 
-def test_links_wait_for_the_download_module(song_tool):
-    with pytest.raises(Exception, match="Links can't be read yet"):
+def test_links_use_the_download_module(song_tool, monkeypatch):
+    from soundselect import links
+
+    def refuse(url, folder, want="video"):
+        raise links.LinkError("This video is private.")
+
+    monkeypatch.setattr(links, "download", refuse)
+    with pytest.raises(Exception, match="private"):
         song_pipeline.analyze_song("https://youtu.be/dQw4w9WgXcQ")
 
 

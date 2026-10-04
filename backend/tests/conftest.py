@@ -85,3 +85,11 @@ def without_song(monkeypatch):
     from soundselect.pipeline import registry
 
     monkeypatch.delitem(registry.PIPELINES, "song", raising=False)
+
+
+@pytest.fixture
+def without_sheet_music(monkeypatch):
+    """The app as it is without the sheet music tool (Phase 3), for tests of what isn't built."""
+    from soundselect.pipeline import registry
+
+    monkeypatch.delitem(registry.PIPELINES, "sheet_music", raising=False)
