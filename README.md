@@ -38,8 +38,8 @@ uv sync --all-extras
 uv run soundselect serve          # then open http://127.0.0.1:8000
 ```
 
-`--all-extras` also installs the tools for sheet music (`sheetmusic`: homr, music21) and for
-links (`links`: yt-dlp). Without them the app still runs and says what each part needs.
+`--all-extras` also installs the tools for sheet music (`sheetmusic`: homr, music21), for
+links (`links`: yt-dlp) and for audio files (`audio`: PyAV, for the song tool). Without them the app still runs and says what each part needs.
 
 Your songs are kept in `~/.soundselect` (set `SOUNDSELECT_HOME` or `--home` to use another
 folder). The app answers only this computer. Stop it with Ctrl+C; anything still being read

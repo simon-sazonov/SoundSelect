@@ -146,8 +146,9 @@ though homr asks for 1.24.1 or later. Another override keeps Intel Macs on 1.20 
 everything else on 1.24.1 or later. uv never builds these from source.
 
 **Extras for the heavy tools.** The photo reader (RapidOCR, onnxruntime, OpenCV, HEIC
-support) is in the main install. Sheet music (`sheetmusic`: homr, music21) and links (`links`:
-yt-dlp) are extras; `uv sync --all-extras` installs everything, and CI does too. Without an
+support) is in the main install. Sheet music (`sheetmusic`: homr, music21), links (`links`:
+yt-dlp) and audio (`audio`: PyAV, which decodes audio and video files for the song tool) are
+extras; `uv sync --all-extras` installs everything, and CI does too. Without an
 extra the app still runs: Health says which tools are there, and an item that needs a missing
 one fails with a message saying to install it.
 
