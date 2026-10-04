@@ -26,7 +26,7 @@ from ..core.view import chord_spelling
 from .model import ParsedSheet, SheetText
 
 KEY_VERSION = "1"
-SONG_VERSION = "1"
+SONG_VERSION = "2"
 UNCLEAR_KEY = 0.6
 
 
@@ -163,7 +163,7 @@ def build_song(
         chords=chords,
         timing=timing,
         corrections=corrections,
-        notes=[*sheet.notices, *_key_notices(key)],
+        notes=[*text.notices, *sheet.notices, *_key_notices(key)],
         source_pages=text.pages,
         versions=dict(versions or {}),
     )

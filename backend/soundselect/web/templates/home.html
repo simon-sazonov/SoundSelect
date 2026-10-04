@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set page = "home" %}
+{% block main %}
+<h1>Make a page for your sax</h1>
+<form id="import" class="card">
+  <label for="text">Paste a chord sheet</label>
+  <textarea id="text" name="text" spellcheck="false" placeholder="Artist - Title
+
+Am              F
+  Words of the song, chords over the lyrics
+C               G
+  as on chord sites, or [Am]ChordPro style"></textarea>
+  <p class="hint">Or choose files: text or PDF chord sheets. Several files make a batch, one song each.</p>
+  <input id="files" type="file" name="files" multiple accept=".txt,.text,.cho,.chopro,.chordpro,.crd,.pro,.pdf,text/plain,application/pdf">
+  <details>
+    <summary>Options</summary>
+    <div class="row" style="margin-top: 10px">
+      <div><label for="instrument">Write it for</label>
+        <select id="instrument" name="instrument">
+        {% for i in instruments %}<option value="{{ i.id }}"{% if i.id == settings.instrument %} selected{% endif %}>{{ i.display_name }}</option>{% endfor %}
+        </select></div>
+      <div><label for="key">Key, if you know it</label><input id="key" type="text" name="key" placeholder="Bb, Gm, ля минор"></div>
+      <div><label for="capo">Capo</label><input id="capo" type="number" name="capo" min="0" max="12" placeholder="from the sheet"></div>
+    </div>
+    <p class="hint">The key and capo apply when you make one song at a time.</p>
+  </details>
+  <p style="margin: 16px 0 0"><button id="go" class="brass">Make my page</button></p>
+  <p id="error" class="error" hidden></p>
+</form>
+
+<h2>Recent songs{% if total > songs | length %} · <a href="/library">all {{ total }}</a>{% endif %}</h2>
+<div class="card">{% with empty = "Your songs will show up here." %}{% include "_songs.html" %}{% endwith %}</div>
+{% endblock %}
+{% block script %}
+<script>
+const form = document.getElementById("import");
+const error = document.getElementById("error");
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  error.hidden = true;
+  const data = new FormData(form);
+  if (!document.getElementById("files").files.length) data.delete("files");
+  for (const name of ["key", "capo"]) if (!data.get(name)) data.delete(name);
+  if (!data.get("text").trim() && !data.has("files")) {
+    error.textContent = "Paste a chord sheet or choose a file first.";
+    error.hidden = false;
+    return;
+  }
+  const go = document.getElementById("go");
+  go.disabled = true; go.textContent = "Working…";
+  try {
+    const res = await fetch("/api/v1/imports", { method: "POST", body: data });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.detail?.message || JSON.stringify(body.detail));
+    location.href = "/batches/" + body.id;
+  } catch (e) {
+    error.textContent = e.message;
+    error.hidden = false;
+    go.disabled = false; go.textContent = "Make my page";
+  }
+});
+</script>
+{% endblock %}

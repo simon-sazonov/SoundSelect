@@ -8,11 +8,11 @@ be checked (later, a photo's unreadable chord line gets a second read).
 from __future__ import annotations
 
 from ..core.chords import parse_chord
-from ..core.song import ChordFix, Notice
+from ..core.song import ChordFix, Notice, SourceRef
 from .lines import clean_chord_text, repeat_count
 from .model import ParsedChord, ParsedLine, ParsedSection, ParsedSheet, SortedSheet, Token
 
-VERSION = "1"
+VERSION = "2"
 
 
 def _chord(token: Token, uses_h: bool) -> ParsedChord | None:
@@ -26,6 +26,15 @@ def _chord(token: Token, uses_h: bool) -> ParsedChord | None:
     if token.kind == "other":
         return ParsedChord(text=token.text, symbol=None, pos=token.pos, readable=False)
     return None  # bar lines and repeat marks
+
+
+def _union(a: SourceRef | None, b: SourceRef | None) -> SourceRef | None:
+    """Where a chord line and its lyrics sit together on the page."""
+    if a is None or b is None or a.page != b.page or a.box is None or b.box is None:
+        return a or b
+    box = (min(a.box[0], b.box[0]), min(a.box[1], b.box[1]))
+    box += (max(a.box[2], b.box[2]), max(a.box[3], b.box[3]))
+    return SourceRef(page=a.page, box=box)
 
 
 def _chords(tokens: list[Token], uses_h: bool) -> list[ParsedChord]:
@@ -65,7 +74,7 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
                         chords=chords,
                         repeat=nxt.repeat or line.repeat,
                         index=line.index,
-                        source=line.source,
+                        source=_union(line.source, nxt.source),
                     )
                 )
                 i += 1

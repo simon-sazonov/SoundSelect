@@ -15,7 +15,7 @@ import typer
 from . import __version__
 from .core.instruments import DEFAULT_INSTRUMENT, INSTRUMENTS
 from .core.keys import Key
-from .core.names import DEFAULT_NAMES, NAME_SYSTEMS, note_name
+from .core.names import DEFAULT_NAMES, NAME_SYSTEMS, key_name, note_name
 from .core.pitch import Pitch
 from .core.song import Corrections, Song
 from .core.view import with_names
@@ -23,6 +23,7 @@ from .pipeline.chord_sheet import analyze_sheet
 from .render.text import song_text
 from .settings import ViewSettings
 from .sheets.readers import SheetInput, UnsupportedInput
+from .store.models import SongSummary
 
 app = typer.Typer(
     name="soundselect",
@@ -275,6 +276,169 @@ def schema(
 ) -> None:
     """The JSON Schema of the Song result, the contract between back end and front end."""
     text = json.dumps(Song.model_json_schema(), indent=2, ensure_ascii=False) + "\n"
+    if out is None:
+        typer.echo(text, nl=False)
+    else:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8")
+        typer.echo(f"Wrote {out}", err=True)
+
+
+HomeOpt = Annotated[
+    Path | None,
+    typer.Option(
+        help="The library folder (default ~/.soundselect, or SOUNDSELECT_HOME).",
+        show_default=False,
+    ),
+]
+LOCAL_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def _summary_line(song: SongSummary, names: str) -> str:
+    """One library song on a line: id, title, artist, written key and the key's pentatonic."""
+    shown = "letters" if names == "none" else names
+    title = song.title or "Untitled song"
+    if song.artist:
+        title += f" — {song.artist}"
+    key = key_name(song.written_key.to_key(), shown) if song.written_key else "key not found"  # type: ignore[arg-type]
+    notes = " ".join(note_name(Pitch.parse(n), shown) for n in song.pentatonic)  # type: ignore[arg-type]
+    return f"{song.id}  {title}  ·  {key}  ·  {notes}".rstrip(" ·")
+
+
+@app.command()
+def serve(
+    host: Annotated[str, typer.Option(help="Address to answer on.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Port to answer on.")] = 8000,
+    home: HomeOpt = None,
+    workers: Annotated[
+        int,
+        typer.Option(
+            min=0, help="Job workers inside the app; 0 when `soundselect worker` runs them."
+        ),
+    ] = 2,
+) -> None:
+    """Run the app: open http://127.0.0.1:8000 in the browser. The API is under /api/v1."""
+    import uvicorn
+
+    from .api import create_app
+
+    if host not in LOCAL_HOSTS:
+        _fail(
+            f"Answering on {host}: anyone who can reach this computer can use SoundSelect, "
+            "and there is no sign-in yet."
+        )
+    app_ = create_app(home, workers=workers)
+    typer.echo(f"SoundSelect {__version__}, library in {app_.state.library.home}", err=True)
+    uvicorn.run(app_, host=host, port=port, log_level="info")
+
+
+@app.command()
+def worker(
+    home: HomeOpt = None,
+    workers: Annotated[int, typer.Option(min=1, help="Jobs to run at the same time.")] = 2,
+) -> None:
+    """Run the job workers as a process of their own, next to `soundselect serve --workers 0`."""
+    import logging
+
+    from .jobs import JobQueue
+    from .store import Library
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s: %(message)s")
+    JobQueue(Library(home)).run_forever(workers)
+
+
+@app.command()
+def add(
+    files: Annotated[
+        list[str],
+        typer.Argument(
+            help="Chord sheets (.txt or .pdf), or - to read one from the keyboard.",
+            show_default=False,
+            metavar="FILES...",
+        ),
+    ],
+    home: HomeOpt = None,
+    instrument: Annotated[
+        str | None,
+        typer.Option("--instrument", "-i", help="Write for this instrument, not your default."),
+    ] = None,
+    key: KeyOpt = None,
+    capo: Annotated[int | None, typer.Option(min=0, max=12, help="Capo fret.")] = None,
+    title: Annotated[str | None, typer.Option(help="Song title (one sheet only).")] = None,
+    artist: Annotated[str | None, typer.Option(help="Artist (one sheet only).")] = None,
+) -> None:
+    """Add chord sheets to the library, as the import screen does, and wait for them."""
+    from . import service
+    from .imports import ImportOptions
+    from .jobs import run_job
+    from .store import Library
+
+    _check_key(key)
+    if len(files) > 1 and (title or artist or key or capo is not None):
+        raise typer.BadParameter("--title, --artist, --key and --capo are for one sheet at a time")
+    texts: list[str] = []
+    uploads: list[tuple[str | None, bytes]] = []
+    for name in files:
+        if name == "-":
+            texts.append(sys.stdin.read())
+            continue
+        path = Path(name)
+        if not path.is_file():
+            raise typer.BadParameter(f"no file named {name}")
+        uploads.append((path.name, path.read_bytes()))
+    lib = Library(home)
+    options = ImportOptions(instrument=instrument, title=title, artist=artist, key=key, capo=capo)
+    try:
+        batch = service.start_import(lib, texts=texts, files=uploads, options=options)
+    except service.BadRequest as exc:
+        _fail(str(exc))
+        raise typer.Exit(1) from None
+    for job_id in service.queued_jobs(batch):
+        run_job(lib, job_id)
+    done = lib.batch(batch.id) or batch
+    names = lib.settings().names
+    for job in done.jobs:
+        if job.status == "done" and job.song_id:
+            summary = service.song_summary(lib, job.song_id, instrument=instrument)
+            reused = "  (already in the library)" if job.reused else ""
+            typer.echo(_summary_line(summary, names) + reused)
+        else:
+            _fail(f"{job.name}: {job.error}")
+    if done.failed:
+        raise typer.Exit(1)
+
+
+@app.command()
+def songs(
+    query: Annotated[
+        str | None, typer.Argument(help="Words to find in title, artist or lyrics.")
+    ] = None,
+    home: HomeOpt = None,
+    limit: Annotated[int, typer.Option(min=1, help="Show at most this many.")] = 50,
+) -> None:
+    """The songs in the library, newest first, with the key and pentatonic for your instrument."""
+    from . import service
+    from .store import Library
+
+    lib = Library(home)
+    found = service.list_songs(lib, query, limit=limit)
+    names = lib.settings().names
+    for summary in found.songs:
+        typer.echo(_summary_line(summary, names))
+    if found.total > len(found.songs):
+        typer.echo(f"… and {found.total - len(found.songs)} more", err=True)
+    elif not found.songs:
+        typer.echo("No songs found." if query else "The library is empty.", err=True)
+
+
+@app.command()
+def openapi(
+    out: Annotated[Path | None, typer.Option(help="Write the description to this file.")] = None,
+) -> None:
+    """The web API's exact description (OpenAPI), as kept in docs/openapi.json."""
+    from .api import openapi_json
+
+    text = openapi_json()
     if out is None:
         typer.echo(text, nl=False)
     else:

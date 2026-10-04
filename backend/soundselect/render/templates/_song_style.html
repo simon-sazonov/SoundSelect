@@ -1,0 +1,85 @@
+  :root {
+    --ink: #15171c; --muted: #5f636b; --brass: #a24e00; --brass-light: #f2b84b;
+    --soft: #fdf6e8; --line: #e3e5e9; --clash: #b54708; --paper: #ffffff;
+    --mono: "SF Mono", Menlo, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, "Liberation Sans", "DejaVu Sans", sans-serif;
+    font-size: 15px; line-height: 1.45;
+  }
+  main { max-width: 900px; margin: 0 auto; padding: 24px 16px 40px; }
+  .brand { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--brass); font-weight: 600; }
+  h1 { font-size: 30px; line-height: 1.15; margin: 4px 0 2px; }
+  .artist { margin: 0; color: var(--muted); font-size: 17px; }
+  h2 { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+  h3 { font-size: 15px; margin: 18px 0 6px; }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 18px 0; }
+  .headline { border: 2px solid var(--brass-light); background: var(--soft); }
+  .keys { display: flex; flex-wrap: wrap; gap: 10px 28px; }
+  .k-label { display: block; font-size: 12px; color: var(--muted); }
+  .k-name { display: block; font-size: 24px; font-weight: 700; line-height: 1.2; }
+  .key.concert .k-name { font-size: 18px; font-weight: 600; }
+  .k-sub { display: block; font-size: 13px; color: var(--muted); }
+  .sure { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .pentatonic { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--brass-light); }
+  .scale-label { font-size: 19px; font-weight: 650; margin: 0; }
+  .pentatonic .scale-label { font-size: 22px; }
+  .reason { color: var(--muted); font-size: 13px; margin: 0 0 2px; }
+  .names { font-size: 18px; margin: 2px 0 0; word-spacing: .2em; }
+  .pentatonic .names { font-size: 22px; }
+  .letters { color: var(--muted); margin: 0; font-size: 13px; }
+  .scale-item, tr, .line, .staff-wrap, .pentatonic { break-inside: avoid; page-break-inside: avoid; }
+  .scale-item + .scale-item { margin-top: 14px; }
+  h2, h3, .section-label { break-after: avoid; page-break-after: avoid; }
+  .staff-wrap { margin-top: 6px; overflow-x: auto; }
+  .staff-wrap svg.staff { max-width: 100%; height: auto; display: block; }
+  svg.staff text { font-family: "Liberation Serif", "Times New Roman", Times, serif; }
+  {{ music_font_css }}
+  .chart .rows { overflow-x: auto; }
+  .chart .section { margin: 14px 0 4px; }
+  .chart .section:first-of-type { margin-top: 4px; }
+  .section-label { font-weight: 650; color: var(--brass); margin-bottom: 2px; }
+  .line { margin: 0 0 8px; font-family: var(--mono); font-size: 14.5px; line-height: 1.3; }
+  .row { position: relative; }
+  .chords { position: relative; height: 1.3em; }
+  .chords .c, .chords .repeat { position: absolute; top: 0; white-space: pre; }
+  .chords .c { font-weight: 700; color: var(--brass); }
+  .chords .c.bad { color: var(--clash); text-decoration: underline wavy; }
+  .ly { white-space: pre; }
+  .repeat { color: var(--muted); font-family: -apple-system, "Segoe UI", Arial, "Liberation Sans", sans-serif; font-size: 13px; font-weight: 400; }
+  .ly .repeat { margin-left: 1.5em; }
+  .section-label .repeat { margin-left: .5em; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; border-bottom: 1px solid var(--line); padding: 6px; }
+  td { border-bottom: 1px solid var(--line); padding: 7px 6px; vertical-align: top; }
+  td.chord { font-weight: 700; color: var(--brass); white-space: nowrap; }
+  td.chord .hint { font-weight: 400; color: var(--muted); font-size: 13px; }
+  td.concert { color: var(--muted); white-space: nowrap; }
+  .clash { color: var(--clash); }
+  .chord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px 24px; margin-top: 8px; }
+  .chord-item { min-width: 0; break-inside: avoid; page-break-inside: avoid; }
+  .chord-title { margin: 0; font-size: 14px; }
+  .chord-title b { color: var(--brass); }
+  .chord-title .hint { color: var(--muted); }
+  .notes ul { margin: 0; padding-left: 20px; }
+  .notes li { margin: 4px 0; }
+  .notes .warning { color: var(--clash); }
+  footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
+  @media (max-width: 560px) {
+    h1 { font-size: 24px; }
+    .k-name { font-size: 21px; }
+    .pentatonic .names { font-size: 19px; }
+    .line { font-size: 12.5px; }
+    td.concert, th.concert, td.tones, th.tones { display: none; }
+  }
+  @page { size: A4; margin: 14mm 12mm; }
+  @media print {
+    body { font-size: 12.5px; }
+    main { max-width: none; padding: 0; }
+    .card { margin: 12px 0; }
+    .staff-wrap, .chart .rows { overflow: visible; }
+    .line { font-size: 12.5px; }
+  }

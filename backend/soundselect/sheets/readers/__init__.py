@@ -94,4 +94,4 @@ def read_sheet(inp: SheetInput) -> SheetText:
     return reader(inp)
 
 
-from . import text  # noqa: E402,F401  (registers the text reader)
+from . import pdf, text  # noqa: E402,F401  (registers the readers)

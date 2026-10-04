@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from functools import cache
 
-from jinja2 import Environment, PackageLoader, select_autoescape
+from jinja2 import Environment, PackageLoader, Template, select_autoescape
 from markupsafe import Markup
 
 from .. import __version__
@@ -221,6 +221,28 @@ def song_context(song: Song, names: NameSystem = "russian", *, written: bool = T
     }
 
 
-def song_page(song: Song, names: NameSystem = "russian", *, written: bool = True) -> str:
-    """The whole song page as one self-contained HTML document."""
-    return _env().get_template("song.html").render(**song_context(song, names, written=written))
+def song_page(
+    song: Song,
+    names: NameSystem = "russian",
+    *,
+    written: bool = True,
+    head: Markup | None = None,
+    before: Markup | None = None,
+) -> str:
+    """The whole song page as one self-contained HTML document.
+
+    ``head`` adds to the page's head and ``before`` goes above the song; the app's screens
+    use them for their bar of buttons, which never prints.
+    """
+    context = song_context(song, names, written=written)
+    return _env().get_template("song.html").render(**context, footer=True, head=head, before=before)
+
+
+def song_body(song: Song, names: NameSystem = "russian", *, written: bool = True) -> Markup:
+    """The song's part of a page, without the page around it (for songbooks)."""
+    context = song_context(song, names, written=written)
+    return Markup(_env().get_template("_song_body.html").render(**context, footer=False))
+
+
+def template(name: str) -> Template:
+    return _env().get_template(name)
