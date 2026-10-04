@@ -24,6 +24,7 @@ dependencies = [
 [project.optional-dependencies]
 sheetmusic = ["homr>=0.7", "music21>=9.1"]
 links = ["yt-dlp[default]>=2025.1"]
+audio = ["av>=14"]
 
 [project.scripts]
 soundselect = "soundselect.cli:main"
