@@ -1,5 +1,5 @@
 """Building a song's parts as MusicXML: the key's pentatonic, whole-song scales, a scale for each
-chord and each chord's notes, written for the instrument or in concert pitch."""
+chord, each chord's notes and the melody, written for the instrument or in concert pitch."""
 
 from __future__ import annotations
 
@@ -10,10 +10,11 @@ from ..core.names import NameSystem
 from ..core.pitch import Interval, Pitch
 from ..core.ranges import place_ascending
 from ..core.song import ChordInfo, ScaleInfo, Song
+from .melody import melody_measures
 from .musicxml import MeasureSpec, NoteSpec, names_for, scale_measure, score_xml
 
-Part = Literal["headline", "scales", "chord_scales", "chord_notes", "all"]
-PARTS: tuple[str, ...] = ("headline", "scales", "chord_scales", "chord_notes", "all")
+Part = Literal["headline", "scales", "chord_scales", "chord_notes", "melody", "all"]
+PARTS: tuple[str, ...] = ("headline", "scales", "chord_scales", "chord_notes", "melody", "all")
 PitchView = Literal["written", "concert"]
 
 
@@ -101,10 +102,17 @@ def song_score(
         measures = chord_scale_measures(song, names, view)
     elif part == "chord_notes":
         measures = chord_note_measures(song, names, view)
-    else:
+    elif part == "melody":
+        measures = melody_measures(song, names, written=view == "written")
+    else:  # the melody first, then the scales on a new line
+        melody = melody_measures(song, names, written=view == "written")
         measures = scale_measures(song, headline + others, names, view) + chord_scale_measures(
             song, names, view
         )
+        if melody and measures:
+            melody[-1].barline = "light-light"
+            measures[0].new_system = True
+        measures = melody + measures
     if not measures:
         return None
     title = song.identity.title if part == "all" else None

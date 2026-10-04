@@ -202,7 +202,7 @@ def test_scores(client, song_id):
     chord = client.get(f"{API}/songs/{song_id}/score?part=chord&chord=Gm")
     assert chord.status_code == 200 and "<harmony" in chord.text
     assert client.get(f"{API}/songs/{song_id}/score?part=chord&chord=Q").status_code == 404
-    assert client.get(f"{API}/songs/{song_id}/score?part=melody").status_code == 422
+    assert client.get(f"{API}/songs/{song_id}/score?part=melody").status_code == 404  # no melody
 
 
 @pytest.mark.parametrize(

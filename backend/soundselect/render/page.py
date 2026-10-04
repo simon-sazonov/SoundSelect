@@ -1,8 +1,9 @@
 """The song page: what a chord sheet becomes, as one HTML page that also prints to PDF.
 
 Order, as the plan sets it: the key (for the instrument and in concert pitch) with the key's
-pentatonic on the staff right under it, the other whole-song scales, the chord chart with the
-instrument's chords over the lyrics, each chord's scale and notes, then any notes to the player.
+pentatonic on the staff right under it, the melody (songs from recordings), the other whole-song
+scales, the chord chart with the instrument's chords over the lyrics, each chord's scale and
+notes, then any notes to the player.
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ from ..core.pitch import Pitch
 from ..core.scales import LABELS
 from ..core.song import Line, ScaleInfo, ScaleSpelling, Song
 from .chart import line_rows, section_title
+from .melody import doubtful_count, melody_measures
 from .musicxml import scale_measure, score_xml
 from .scores import chord_score
 from .staff import draw, music_font_css
@@ -75,6 +77,16 @@ class ScaleView:
     reason: str
     names: str
     svg: Markup
+
+
+@dataclass
+class MelodyView:
+    svg: Markup  # one drawing per line of music
+    meter: str
+    tempo: int | None
+    doubtful: int
+    moved: str | None  # "an octave up", when written in another octave to sit in the range
+    heard: bool  # written down from a recording
 
 
 @dataclass
@@ -137,6 +149,26 @@ def _scale_view(scale: ScaleInfo, names: NameSystem, written: bool, fifths: int)
     )
 
 
+_OCTAVES = {2: "two octaves up", 1: "an octave up", -1: "an octave down", -2: "two octaves down"}
+
+
+def _melody_view(song: Song, names: NameSystem, written: bool, fifths: int) -> MelodyView | None:
+    measures = melody_measures(song, names, written=written)
+    if not song.melody or not measures:
+        return None
+    beats, beat_type = measures[0].time or (4, 4)
+    tempo = song.timing.tempo if song.timing else None
+    shift = song.melody.octave_shift if written else 0
+    return MelodyView(
+        svg=Markup(draw(score_xml(measures, key_fifths=fifths), by_line=True)),
+        meter=f"{beats}/{beat_type}",
+        tempo=round(tempo) if tempo else None,
+        doubtful=doubtful_count(song),
+        moved=_OCTAVES.get(shift, f"{shift:+d} octaves" if shift else None),
+        heard=song.melody.source == "audio",
+    )
+
+
 def _line_rows(line: Line, written: bool) -> list[RowView]:
     rows = [
         RowView(
@@ -192,6 +224,7 @@ def song_context(song: Song, names: NameSystem = "russian", *, written: bool = T
         sections.append(sv)
 
     chords = [_chord_view(song, i, names, written) for i in range(len(song.chords))]
+    melody = _melody_view(song, names, written, fifths)
 
     key = song.key
     return {
@@ -210,6 +243,7 @@ def song_context(song: Song, names: NameSystem = "russian", *, written: bool = T
         ),
         "key_basis": key.basis if key else None,
         "headline": headline,
+        "melody": melody,
         "scales": others,
         "sections": sections,
         "chords": chords,

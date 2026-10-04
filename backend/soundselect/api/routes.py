@@ -37,7 +37,7 @@ from .errors import ERRORS, ApiError, ErrorResponse
 router = APIRouter()
 
 PitchView = Literal["written", "concert"]
-ScorePart = Literal["headline", "scales", "chord_scales", "chord_notes", "all", "chord"]
+ScorePart = Literal["headline", "scales", "chord_scales", "chord_notes", "melody", "all", "chord"]
 ExportFormat = Literal["pdf", "html", "musicxml", "json", "txt", "midi"]
 MUSICXML = "application/vnd.recordare.musicxml+xml"
 POLL_SECONDS = 0.25
@@ -345,8 +345,8 @@ def get_score(
     format: Literal["musicxml", "svg"] = "musicxml",
 ) -> Response:
     """One part of the song on the staff, as MusicXML (draw it with Verovio) or as SVG:
-    the key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, or
-    one chord with its notes and scale."""
+    the key's pentatonic, the whole-song scales, each chord's scale, each chord's notes, the
+    melody, or one chord with its notes and scale."""
     from ..render.scores import chord_score
 
     song = service.get_song(lib, song_id, instrument=instrument)
@@ -570,6 +570,9 @@ def health(lib: Lib, queue: Queue) -> Health:
             photo_reading="photo" in READERS,
             sheet_music=sheet_music,
             audio=audio,
-            links=importlib.util.find_spec("yt_dlp") is not None and (sheet_music or audio),
+            # the link downloader (soundselect.links) comes with the sheet music tool
+            links=importlib.util.find_spec("yt_dlp") is not None
+            and importlib.util.find_spec("soundselect.links") is not None
+            and (sheet_music or audio),
         ),
     )

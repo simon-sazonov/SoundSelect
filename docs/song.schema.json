@@ -656,6 +656,7 @@
             }
           ],
           "default": null,
+          "description": "How surely the note was heard, 0 to 1; below 0.4 it is doubtful.",
           "title": "Confidence"
         },
         "out_of_range": {

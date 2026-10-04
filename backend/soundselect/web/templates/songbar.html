@@ -16,11 +16,13 @@
   <div class="row">
     <div><label for="ss-key">Key (concert, as the piano plays it)</label>
       <select id="ss-key">
-        <option value="">Found from the chords</option>
+        <option value="">{{ "Found from the recording" if song.melody and song.melody.source == "audio" else "Found from the chords" }}</option>
         {% for value, label in key_options %}<option value="{{ value }}"{% if corrections.key and corrections.key == value %} selected{% endif %}>{{ label }}</option>{% endfor %}
         {% if corrections.key and corrections.key not in key_options | map("first") %}<option value="{{ corrections.key }}" selected>{{ corrections.key }}</option>{% endif %}
       </select></div>
+    {% if song.form %}
     <div><label for="ss-capo">Capo</label><input id="ss-capo" type="number" min="0" max="12" value="{{ corrections.capo if corrections.capo is not none else '' }}" placeholder="as on the sheet"></div>
+    {% endif %}
     <div><label for="ss-title">Title</label><input id="ss-title" type="text" value="{{ song.identity.title or '' }}"></div>
     <div><label for="ss-artist">Artist</label><input id="ss-artist" type="text" value="{{ song.identity.artist or '' }}"></div>
     {% if b_choice %}
@@ -29,6 +31,13 @@
         <option value=""{% if corrections.b_is_flat is none %} selected{% endif %}>Read from the sheet</option>
         <option value="true"{% if corrections.b_is_flat == true %} selected{% endif %}>B♭ (си-бемоль)</option>
         <option value="false"{% if corrections.b_is_flat == false %} selected{% endif %}>B (си)</option>
+      </select></div>
+    {% endif %}
+    {% if song.melody %}
+    <div><label for="ss-octave">Melody octave</label>
+      <select id="ss-octave">
+        <option value=""{% if corrections.melody_octave is none %} selected{% endif %}>Fit my range{% if corrections.melody_octave is none and song.melody.octave_shift %} ({{ octave_labels.get(song.melody.octave_shift, "%+d octaves" % song.melody.octave_shift) | lower }}){% endif %}</option>
+        {% for n, label in octave_labels.items() %}<option value="{{ n }}"{% if corrections.melody_octave == n %} selected{% endif %}>{{ label }}</option>{% endfor %}
       </select></div>
     {% endif %}
   </div>
@@ -41,7 +50,7 @@
   {% endif %}
   <div class="actions">
     <button class="ss-btn brass" type="button" id="ss-save">Save</button>
-    {% if corrections.key or corrections.capo is not none or corrections.chords or corrections.title or corrections.artist or corrections.b_is_flat is not none %}
+    {% if corrections.key or corrections.capo is not none or corrections.chords or corrections.title or corrections.artist or corrections.b_is_flat is not none or corrections.melody_octave is not none %}
     <button class="ss-btn" type="button" id="ss-undo" style="color:#15171c;border-color:#d9c9a8">Undo all my fixes</button>
     {% endif %}
     <span class="hint">Saving runs only the steps your fix touches.</span>
@@ -53,12 +62,15 @@
 (() => {
   const songId = {{ song.id | tojson }};
   const fixes = {{ fixes | tojson }};
-  const fields = { key: "ss-key", capo: "ss-capo", title: "ss-title", artist: "ss-artist" };
+  const ids = { key: "ss-key", capo: "ss-capo", title: "ss-title", artist: "ss-artist" };
+  const fields = Object.fromEntries(Object.entries(ids).filter(([, id]) => document.getElementById(id)));
   const value = (name) => document.getElementById(fields[name]).value.trim();
   const initial = Object.fromEntries(Object.keys(fields).map((name) => [name, value(name)]));
   const error = document.getElementById("ss-error");
-  const bSelect = document.getElementById("ss-b");
-  if (bSelect) bSelect.dataset.initial = bSelect.value;
+  for (const id of ["ss-b", "ss-octave"]) {
+    const select = document.getElementById(id);
+    if (select) select.dataset.initial = select.value;
+  }
   const send = async (patch) => {
     error.hidden = true;
     const res = await fetch(`/api/v1/songs/${songId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
@@ -76,12 +88,14 @@
     const chord = document.getElementById("ss-chord");
     const b = document.getElementById("ss-b");
     if (b && b.value !== b.dataset.initial) patch.b_is_flat = b.value === "" ? null : b.value === "true";
+    const octave = document.getElementById("ss-octave");
+    if (octave && octave.value !== octave.dataset.initial) patch.melody_octave = octave.value === "" ? null : Number(octave.value);
     if (chord && chord.value) patch.chords = [...fixes, { original: chord.value, to: document.getElementById("ss-to").value.trim() }];
     if (!Object.keys(patch).length) { document.getElementById("ss-fix").hidden = true; return; }
     send(patch);
   });
   const undo = document.getElementById("ss-undo");
-  if (undo) undo.addEventListener("click", () => send({ key: null, capo: null, title: null, artist: null, chords: [], b_is_flat: null }));
+  if (undo) undo.addEventListener("click", () => send({ key: null, capo: null, title: null, artist: null, chords: [], b_is_flat: null, melody_octave: null }));
   document.getElementById("ss-delete").addEventListener("click", async () => {
     if (!confirm("Delete this song from your library?")) return;
     const res = await fetch(`/api/v1/songs/${songId}`, { method: "DELETE" });
