@@ -28,6 +28,7 @@ def test_library(client, sheet_text, data_dir):
     assert client.get("/library?sort=sideways").status_code == 422
 
 
+@pytest.mark.usefixtures("without_song")
 def test_batch(client, sheet_text):
     batch = add(client, sheet_text + "\n")
     page = client.get(f"/batches/{batch['id']}").text

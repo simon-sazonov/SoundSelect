@@ -31,6 +31,11 @@ def sheet_music(monkeypatch):
     return spec
 
 
+@pytest.fixture(autouse=True)
+def _without_song(without_song):
+    """These tests start from the hooks alone; each adds the pipelines it needs."""
+
+
 def boom(data):
     raise RuntimeError("broken image")
 
