@@ -227,3 +227,58 @@ once capitalised, and there are two or more of them or Russian lyrics follow.
 
 **Repeat words after chords.** "(2 раза)", "2 times" and "x 2" after chords are read as one
 repeat mark, as "x2" already was.
+
+## Phase 4: songs from audio
+
+**Every engine runs on onnxruntime and numpy.** The plan picked Demucs through audio-separator,
+Basic Pitch and Beat This. On an Intel Mac none of them installs today: PyTorch stops at 2.2
+there (audio-separator needs 2.3 and numpy 2; Beat This needs PyTorch), numba and llvmlite (so
+librosa) have no Intel Mac wheels, and the basic-pitch package pulls TensorFlow or coremltools
+on macOS. So the song tool uses:
+
+- the voice: the MDX-Net vocal model `UVR-MDX-NET-Voc_FT` from the Ultimate Vocal Remover
+  project, run with onnxruntime (`audio/separate.py`, with the model's published spectrogram
+  settings). About 0.6 times the song's length on four cloud cores.
+- the notes: Basic Pitch's own ONNX model file (v0.4.0), with its note decoding ported to numpy
+  (`audio/notes.py`).
+- the beat: the classic onset-strength, tempo and dynamic-programming beat tracker (the method
+  librosa uses), in numpy (`audio/beats.py`); bars from where the bass and kick hit hardest,
+  4/4 unless 3/4 is clearly better.
+- opening any recording: PyAV, which carries its own ffmpeg, so nothing else is installed.
+
+Both models download once into `~/.soundselect/models` and are checked against their SHA-256;
+`SOUNDSELECT_MODELS` points at a folder of models instead. Demucs and Beat This can join later
+as optional engines where PyTorch installs (Linux, Docker, Apple-chip Macs).
+
+**Separated parts are files, the rest is saved by the step runner.** The voice and the band,
+mono at 22.05 kHz in half-precision, sit in `~/.soundselect/audio/<recording>/` (about 20 MB a
+song); a key or octave correction never separates again, and a missing file is simply made
+again. A link's download is kept there too.
+
+**Tuning first.** The recording's distance from A = 440 Hz (from its sharpest spectral peaks)
+is measured before notes are found, and the voice is retuned for the note finder, so a record
+a quarter tone off doesn't land between keys. More than 15 cents off gets a note to the player.
+
+**Melody.** Overtone ghosts are dropped (an octave, octave and fifth, two octaves, two octaves
+and a third above a louder note), the louder and higher note wins where notes overlap, short
+neighbour notes (vibrato, scoops) fold into the note they decorate, and notes where the voice
+part is nearly silent (what leaks through in an intro) are dropped. With hardly any singing
+(an instrumental), the melody comes from the whole mix and the player is told.
+
+**Rhythm.** Times become beats along the beats found, one beat at a time, then snap to
+sixteenths; bar 1 starts at the downbeat at or before the first note. Tiny gaps close up.
+Notes heard less clearly than 0.4 count as doubtful and are listed in a note to the player;
+every song says its melody is a draft.
+
+**Key.** From the melody (how long each pitch class is held) and the band's sound (how strongly
+each pitch class rings), half each, against the Krumhansl-Kessler profiles. Chords recognized
+from the band will add their evidence in a later phase.
+
+**Octave.** The melody moves by whole octaves to sit in the player's comfortable range, unless
+the player set `melody_octave`.
+
+**Links** wait for the shared download module from the sheet music phase; until it lands, a
+link job fails with a message that says so.
+
+**Docker Compose** runs the app and one worker on one library volume; songs take minutes, so
+they run one at a time in the worker and the app stays quick.
