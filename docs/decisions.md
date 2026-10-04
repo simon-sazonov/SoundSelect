@@ -168,6 +168,45 @@ chosen together.
 and draw them; a song's pages are numbered across its files in order, so a two-page PDF then a
 photo gives pages 0, 1 and 2. Drawn pages are kept under the pipeline's name and its inputs.
 
+## Phase 2
+
+**Photos are read on this computer.** RapidOCR (PaddleOCR's models, run by onnxruntime)
+reads each picture; nothing is sent anywhere. Its built-in model reads Latin letters, digits
+and signs, so every chord, but no Cyrillic. Russian lyrics need PaddleOCR's East Slavic model,
+which RapidOCR downloads the first time (about 8 MB) and keeps. Both models read every piece of
+text and the surer reading wins. Without the internet on first use the chords still come
+through, and the song says some writing couldn't be read. The AI reader the plan keeps as a
+fallback (`settings.photo_reader = "ai"`) is not built: the local reader is to be judged on
+your real photos first.
+
+**A photo is prepared the same way every time.** The page is cut out of a darker background
+and flattened when its edges are clear, the picture is sized to 1400 to 2000 pixels on its long
+side, and a tilt of up to 6 degrees is levelled by finding the angle at which the rows of ink
+separate most sharply. All of it depends only on the file, so the picture shown beside a song,
+drawn again long after reading, is the one the line boxes were measured on. The phone's
+orientation tag is followed; a photo with a wrong tag is read sideways. iPhone HEIC photos open
+through pillow-heif.
+
+**Words become lines the way the PDF reader does it.** Each word read comes with its box, its
+letters share its width evenly, and the PDF reader's layout puts each chord over the letter it
+sits above, splits pages printed in two columns and drops page numbers and web addresses in
+the margins. In a row that is otherwise chords, two chords read as one word (`Bb/DCm7`) are
+split, and `rn` read for `m` is put right. A chord read with little certainty is pointed out.
+
+**Scanned PDFs are photos.** A PDF page with only a picture on it is drawn at twice its shown
+size and read by the photo reader, with boxes in the page's shown size, so the source view
+works as for any PDF.
+
+**A group is one song from several files,** read in the order given, its pages numbered on
+across the files (a two-page PDF then a photo gives pages 0, 1 and 2). Its fingerprint is made
+from the files' contents in order, so the same photos under other names are the same song.
+
+**Measured on the test pictures** (made from the sample sheets by
+`backend/tests/data/photos/make.py`): a screenshot, a phone-style photo at an angle on a dark
+table, the scanned PDF and a song over two pictures all give every chord and the key right,
+each chord within a letter of its place. Reading takes about a second a picture on the
+cloud test machine.
+
 ## Phase 4: songs from audio
 
 **Every engine runs on onnxruntime and numpy.** The plan picked Demucs through audio-separator,
