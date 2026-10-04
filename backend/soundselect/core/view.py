@@ -19,6 +19,7 @@ from .song import (
     ChordSpelling,
     InstrumentView,
     KeyName,
+    Melody,
     ScaleInfo,
     ScaleSpelling,
     Song,
@@ -144,15 +145,31 @@ def apply_instrument(
 
     versions = dict(song.versions)
     versions["view"] = VERSION
-    return song.model_copy(
-        update={
-            "view": view,
-            "scales": scales,
-            "chords": chords,
-            "form": form,
-            "versions": versions,
-        }
-    )
+    update: dict[str, object] = {
+        "view": view,
+        "scales": scales,
+        "chords": chords,
+        "form": form,
+        "versions": versions,
+    }
+    if song.melody is not None:
+        update["melody"] = _written_melody(song.melody, tr.interval, low, high)
+    return song.model_copy(update=update)
+
+
+def _written_melody(melody: Melody, interval: Interval, low: Pitch, high: Pitch) -> Melody:
+    """Each note written for the instrument, moved by the melody's octave shift, and marked
+    when it falls outside the comfortable range. Rests stay rests."""
+    notes = []
+    for n in melody.notes:
+        if n.concert is None:
+            notes.append(n.model_copy(update={"written": None, "out_of_range": False}))
+            continue
+        p = Pitch.parse(n.concert).transpose(interval)
+        p = p.at_octave((p.octave if p.octave is not None else 4) + melody.octave_shift)
+        outside = p.midi < low.midi or p.midi > high.midi
+        notes.append(n.model_copy(update={"written": str(p), "out_of_range": outside}))
+    return melody.model_copy(update={"notes": notes})
 
 
 def song_pitches(song: Song) -> list[Pitch]:

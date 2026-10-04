@@ -3,11 +3,11 @@ player, and the hooks for its source pages, its engines and spotting staves in a
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 from ..core.song import Corrections, Song
 from ..imports import InputRef
+from ..pipeline.registry import PipelineSpec, ReadInput
 from ..settings import ViewSettings
 from .files import FileStore
 from .pipeline import (
@@ -19,8 +19,6 @@ from .pipeline import (
     clean_page,
     files_for,
 )
-
-ReadInput = Callable[[InputRef], bytes]
 
 
 def _files(read: ReadInput) -> FileStore:
@@ -92,8 +90,7 @@ def claims(data: bytes) -> bool:
         return False
 
 
-def make_spec():  # type: ignore[no-untyped-def]
-    from ..pipeline.registry import PipelineSpec
+def make_spec() -> PipelineSpec:
 
     return PipelineSpec(
         name="sheet_music",

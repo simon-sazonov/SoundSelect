@@ -36,21 +36,40 @@ A request FastAPI can't parse at all (a missing field, a number out of range) ge
 ## Importing
 
 `POST /imports` takes `multipart/form-data` and answers at once with `202` and a **Batch**: one
-job per song. Each pasted text, file and link is one song.
+job per song or piece. Each pasted text, file and link is one, except for groups and sheet
+music screenshots (below).
 
 | Field | |
 |---|---|
 | `text` | Pasted chord sheet; repeat the field for several |
-| `files` | Text (`.txt`, `.cho`, `.crd`, ...) and PDF chord sheets; repeat for several |
-| `link` | A link; repeat for several |
+| `files` | Text (`.txt`, `.cho`, `.crd`, ...), PDF and photos of chord sheets; screenshots and videos of sheet music; audio files. Repeat for several |
+| `link` | A link (YouTube and others); repeat for several |
 | `instrument` | Write the songs for this instrument instead of the default |
 | `title`, `artist`, `key`, `capo` | Corrections for a single song (ignored in a batch of several) |
-| `groups` | JSON, e.g. `[[0, 1]]`: files that make one song (photo phase) |
-| `link_mode` | `auto`, `sound` or `sheet_music` (link phases) |
+| `groups` | JSON, e.g. `[[0, 1]]`: files that make one song or piece, by position from 0 |
+| `image_mode` | What image files are: `auto` (look for staves), `chord_sheet` or `sheet_music` |
+| `link_mode` | What a link is read for: `auto`, `sound` (the song tool) or `sheet_music` |
+
+Which tool reads each item:
+
+- Text and PDF files are chord sheets.
+- Image files are photos of chord sheets, or screenshots of sheet music when `image_mode` is
+  `sheet_music`, or when it is `auto` and the sheet music reader sees staves in the image.
+- Videos are sheet music; audio files are songs.
+- A link is read for its sound with `link_mode=sound` and for its sheet music with
+  `sheet_music`. With `auto` it goes to sheet music while that is the only one built, and to
+  songs otherwise; Phase 4 decides it by looking at the link once both exist.
+
+A group always means "these files make one song or piece", read in the group's order. Its files
+must all go to the same tool, and that tool must read several files at once; a group that mixes
+chord sheets and sheet music fails with "A group can't mix chord sheets and sheet music."
+Sheet music screenshots in no group are the pages of one piece: they make one job together, at
+the place of the first, named "first.png and 2 more". Every other file is one song or piece.
 
 Every item gets a job, including kinds a later phase reads (photos, audio, video, links): their
 job has already failed with a message saying when they arrive, so the screen can show every
-item the same way. A file nothing can read fails the same way ("SoundSelect can't read .docx
+item the same way. When a tool is built but its extra packages aren't installed, the message
+says to run `uv sync --all-extras`. A file nothing can read fails the same way ("SoundSelect can't read .docx
 files..."), and so does an empty file. The same contents imported again come back as the song
 already in the library (`reused: true`), unless the import carries corrections.
 
@@ -93,6 +112,9 @@ The stream starts with every job as it is, so a page opened late catches up. `GE
   ```
 
   A chord fix without `line` and `index` changes every occurrence; `to: ""` removes the chord.
+  `b_is_flat` says what a plain B on the sheet means: `true` B♭ (as on Russian and German
+  sheets), `false` B natural, `null` read from the sheet (a sheet with H means B♭ by B; a Russian
+  sheet whose chords fit B♭ much better gets a `b_flat_guess` notice).
 - `DELETE /songs/{id}`: remove it from the library (204).
 
 Instruments and note names are applied when a song is asked for: the saved song never changes
@@ -133,8 +155,10 @@ screen; `svg` is the server's drawing of it. Note names, when asked for, sit und
 `GET /songs/{id}/pages` lists the source's pages (`image` URLs, with width and height) and where
 each line of the song sits on them: `line` counts lines across the whole song, as chord fixes
 do, and `box` is `x0, y0, x1, y1` in pixels of that page image. `GET
-/songs/{id}/pages/{n}.png` is the page itself (144 dpi). Pasted text has no pages. For sheet
-music the pages are the clean copy (300 dpi) and each line is one line of music (a system).
+/songs/{id}/pages/{n}.png` is the page itself (144 dpi). Pages are numbered across the song's
+files in order: a two-page PDF and then a photo give pages 0, 1 and 2. Pasted text has no
+pages. For sheet music the pages are the clean copy (300 dpi) and each line is one line of
+music (a system).
 
 ## Settings and the app
 
@@ -143,5 +167,7 @@ music the pages are the clean copy (300 dpi) and each line is one line of music 
   octave apart) and photo reader.
 - `GET /instruments`: the instruments songs can be written for, with their ranges.
 - `GET /health`: whether the app is up, how many songs and waiting jobs there are, and which
-  tools are installed (`pdf_output` is false without Pango).
+  tools are installed: `pdf_output` (false without Pango), `pdf_reading`, `photo_reading`,
+  `sheet_music` (screenshots and videos), `audio` (songs from audio) and `links` (yt-dlp is
+  installed and something reads links).
 - `GET /search?q=`: finding a song on YouTube by name, which comes with the song tool (501 now).

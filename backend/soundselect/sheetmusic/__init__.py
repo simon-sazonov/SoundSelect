@@ -1,21 +1,17 @@
 """Phase 3: sheet music from screenshots or a video, stitched in order and re-engraved as one PDF.
 
-Importing this package only registers the pipeline; OpenCV, homr, RapidOCR and music21 load
-when a piece is read. Research and test results: research/sheet-video-to-pdf in the project
-files.
+Research and test results: /mnt/project-files/research/sheet-video-to-pdf/ in the project files.
+
+Its PipelineSpec is registered with ``pipeline.registry.register_pipeline``. Importing this
+package must stay cheap and must not need the extras: heavy packages (homr, cv2, music21,
+yt_dlp, onnxruntime, rapidocr) are imported inside functions.
 """
 
 from __future__ import annotations
 
+from ..pipeline.registry import register_pipeline
+from .spec import make_spec
 
-def _register() -> None:
-    from ..pipeline import registry
+SHEET_MUSIC_SPEC = register_pipeline(make_spec())
 
-    register = getattr(registry, "register_pipeline", None)
-    if register is not None:  # the registry hook lands with the shared Phase 2/3 changes
-        from .spec import make_spec
-
-        register(make_spec())
-
-
-_register()
+__all__ = ["SHEET_MUSIC_SPEC"]

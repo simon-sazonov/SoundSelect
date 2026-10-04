@@ -132,13 +132,12 @@ def test_library_commands(data_dir, tmp_path):
     home = ["--home", str(tmp_path / "lib")]
     empty = runner.invoke(app, ["songs", *home])
     assert empty.exit_code == 0 and "The library is empty." in empty.output
-    added = runner.invoke(
-        app,
-        ["add", str(data_dir / "found_a_love.txt"), str(data_dir / "pdf" / "scanned.pdf"), *home],
-    )
+    broken = tmp_path / "broken.png"
+    broken.write_bytes(b"\x89PNG and nothing more")
+    added = runner.invoke(app, ["add", str(data_dir / "found_a_love.txt"), str(broken), *home])
     assert added.exit_code == 1  # one of the two couldn't be read
     assert "I Found a Love — Test Band  ·  соль мажор  ·  соль ля си ре ми" in added.output
-    assert "scanned.pdf: This PDF is a scan" in added.output
+    assert "broken.png: This file isn't a picture that can be opened." in added.output
     again = runner.invoke(app, ["add", str(data_dir / "found_a_love.txt"), *home])
     assert again.exit_code == 0 and "(already in the library)" in again.output
     pasted = runner.invoke(app, ["add", "-", "--key", "C", "--title", "Mine", *home], input="C G\n")

@@ -12,7 +12,7 @@
           "imports"
         ],
         "summary": "Start an import",
-        "description": "Start making songs: pasted text, files and links, one song each (photos can be\ngrouped into one song). Returns at once with a batch holding a job per song; follow it\nwith ``GET /batches/{id}`` or the event stream. Inputs that can't be read yet get a job\nthat has already failed with the reason, so every item shows up in the batch.",
+        "description": "Start making songs: pasted text, files and links, one song each. Files can be grouped\ninto one song or piece, and sheet music screenshots in no group make one piece. Returns at\nonce with a batch holding a job per song; follow it with ``GET /batches/{id}`` or the event\nstream. Inputs that can't be read yet get a job that has already failed with the reason, so\nevery item shows up in the batch.",
         "operationId": "create_import_api_v1_imports_post",
         "requestBody": {
           "content": {
@@ -1589,7 +1589,7 @@
               }
             ],
             "title": "Files",
-            "description": "Files: text and PDF chord sheets now; photos, audio and video later."
+            "description": "Files: text, PDF and photos of chord sheets; screenshots and videos of sheet music; audio files. Each is read once its phase is built."
           },
           "link": {
             "anyOf": [
@@ -1604,7 +1604,7 @@
               }
             ],
             "title": "Link",
-            "description": "Links, e.g. YouTube (read from a later phase)."
+            "description": "Links (YouTube and others): sheet music videos or songs; see link_mode."
           },
           "instrument": {
             "anyOf": [
@@ -1677,7 +1677,17 @@
               }
             ],
             "title": "Groups",
-            "description": "Files that make one song together, as JSON: [[0, 1], [2]]."
+            "description": "Files that make one song or piece together, as JSON: [[0, 1], [2]]."
+          },
+          "image_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "chord_sheet",
+              "sheet_music"
+            ],
+            "title": "Image Mode",
+            "default": "auto"
           },
           "link_mode": {
             "type": "string",
@@ -1993,6 +2003,18 @@
             ],
             "title": "Page Instrument",
             "description": "Sheet music: the instrument the page is written for ('alto_sax', or 'concert' for concert pitch), instead of what was read from its part name."
+          },
+          "b_is_flat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "B Is Flat",
+            "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet."
           }
         },
         "additionalProperties": false,
@@ -2233,6 +2255,17 @@
             ],
             "title": "Groups",
             "description": "Files that together make one song, as lists of file positions (from 0); for photos of a song that runs over two pages. Read from the photo phase on."
+          },
+          "image_mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "chord_sheet",
+              "sheet_music"
+            ],
+            "title": "Image Mode",
+            "description": "What image files are: chord sheet photos or sheet music screenshots; auto looks for staves.",
+            "default": "auto"
           },
           "link_mode": {
             "type": "string",
@@ -2784,7 +2817,7 @@
           "octave_shift": {
             "type": "integer",
             "title": "Octave Shift",
-            "description": "Octaves the melody was moved to fit the range.",
+            "description": "Octaves the written melody is moved to fit the comfortable range.",
             "default": 0
           },
           "source": {
@@ -3462,6 +3495,18 @@
             ],
             "title": "Page Instrument",
             "description": "Sheet music: the instrument the page is written for ('alto_sax'), or 'concert' for concert pitch; null goes back to what was read from the page."
+          },
+          "b_is_flat": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "B Is Flat",
+            "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet."
           }
         },
         "additionalProperties": false,
@@ -3800,6 +3845,10 @@
             "type": "boolean",
             "title": "Photo Reading"
           },
+          "sheet_music": {
+            "type": "boolean",
+            "title": "Sheet Music"
+          },
           "audio": {
             "type": "boolean",
             "title": "Audio"
@@ -3815,6 +3864,7 @@
           "pdf_output",
           "pdf_reading",
           "photo_reading",
+          "sheet_music",
           "audio",
           "links"
         ],

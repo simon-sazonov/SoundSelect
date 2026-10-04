@@ -31,7 +31,13 @@ CHORD_SHEET = Pipeline(
     [
         Step("read", READ_VERSION, ("source",), read_sheet, SheetText),
         Step("sort", lines.VERSION, ("read",), lines.sort_lines, SortedSheet),
-        Step("parse", parse.VERSION, ("sort", "chord_fixes"), parse.parse_sheet, ParsedSheet),
+        Step(
+            "parse",
+            parse.VERSION,
+            ("sort", "chord_fixes", "b_fix"),
+            parse.parse_sheet,
+            ParsedSheet,
+        ),
         Step("capo", capo.VERSION, ("parse", "capo_fix"), capo.apply_capo, ParsedSheet),
         Step("key", analyze.KEY_VERSION, ("capo", "key_fix"), analyze.sheet_key, KeyResult | None),
         Step(
@@ -58,6 +64,7 @@ def run_chord_sheet(
     inputs = {
         "source": source,
         "chord_fixes": list[ChordFix](corrections.chords),
+        "b_fix": corrections.b_is_flat,
         "capo_fix": corrections.capo,
         "key_fix": corrections.key,
         "corrections": corrections,

@@ -315,6 +315,19 @@
           "default": null,
           "description": "Sheet music: the instrument the page is written for ('alto_sax', or 'concert' for concert pitch), instead of what was read from its part name.",
           "title": "Page Instrument"
+        },
+        "b_is_flat": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What a plain B on the sheet means: true B♭ (Russian and German sheets), false B natural; null reads it from the sheet.",
+          "title": "B Is Flat"
         }
       },
       "title": "Corrections",
@@ -590,7 +603,7 @@
         },
         "octave_shift": {
           "default": 0,
-          "description": "Octaves the melody was moved to fit the range.",
+          "description": "Octaves the written melody is moved to fit the comfortable range.",
           "title": "Octave Shift",
           "type": "integer"
         },

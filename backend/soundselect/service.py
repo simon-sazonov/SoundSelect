@@ -9,6 +9,7 @@ they touch.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from .core.view import apply_instrument, with_names
 from .imports import (
     ImportOptions,
     InputRef,
+    JobKind,
     Unreadable,
     check_groups,
     file_kind,
@@ -31,8 +33,10 @@ from .imports import (
     text_name,
     unreadable_message,
 )
+from .pipeline import registry
 from .pipeline.registry import get_pipeline
 from .settings import ViewSettings
+from .sheets.readers import UnsupportedInput
 from .store import BatchInfo, Library, SongList, SongRecord, SongRow, SongSummary
 
 MAX_TEXT = 200_000  # characters of pasted text
@@ -46,6 +50,9 @@ class BadRequest(ValueError):
 
 class NotFound(LookupError):
     pass
+
+
+NO_PAGES = "This song has no source pages to show."
 
 
 class SongPatch(Model):
@@ -63,6 +70,11 @@ class SongPatch(Model):
         None,
         description="Sheet music: the instrument the page is written for ('alto_sax'), or "
         "'concert' for concert pitch; null goes back to what was read from the page.",
+    )
+    b_is_flat: bool | None = Field(
+        None,
+        description="What a plain B on the sheet means: true B♭ (Russian and German sheets), "
+        "false B natural; null reads it from the sheet.",
     )
 
     def apply(self, current: Corrections) -> Corrections:
@@ -200,17 +212,22 @@ def delete_song(lib: Library, song_id: str) -> None:
 def page_image(lib: Library, song_id: str, index: int) -> Path:
     """A page of the song's source drawn as an image (made once, then kept)."""
     record = _record(lib, song_id)
-    ref = next((r for r in record.inputs if r.kind == "pdf" and r.sha), None)
-    if ref is None or ref.sha is None:
-        raise NotFound("This song has no source pages to show.")
-    path = lib.pages_dir / ref.sha / f"{index}.png"
+    try:
+        spec = get_pipeline(record.pipeline)
+    except ValueError:  # made by a pipeline this build doesn't have
+        raise NotFound(NO_PAGES) from None
+    if spec.pages is None or not record.inputs:
+        raise NotFound(NO_PAGES)
+    sources = "\n".join(ref.sha or ref.url or "" for ref in record.inputs)
+    path = lib.pages_dir / spec.name / hashlib.sha256(sources.encode()).hexdigest()
+    path = path / f"{index}.png"
     if not path.exists():
-        from .sheets.readers.pdf import render_page
-
         try:
-            png = render_page(lib.read_input(ref), index)
+            png = spec.pages(record.inputs, lib.read_input, index)
         except IndexError as exc:
             raise NotFound(f"The source has no page {index + 1}.") from exc
+        except UnsupportedInput as exc:
+            raise NotFound(NO_PAGES) from exc
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_name(f"{index}.{secrets.token_hex(4)}.tmp")
         tmp.write_bytes(png)
@@ -299,19 +316,37 @@ def start_import(
     named_texts = [(ref, text_name(text)) for ref, text in zip(text_refs, texts, strict=True)]
 
     file_refs: list[InputRef | Unreadable] = []
+    kinds: list[JobKind | None] = []  # which job reads each file
     for name, data in files:
         if len(data) > MAX_FILE:
             raise BadRequest(f"{name or 'A file'} is larger than {MAX_FILE // 2**20} MB.")
         kind = file_kind(name, data[:4096])
         if not data:
             file_refs.append(Unreadable(name or "File", "This file is empty."))
+            kinds.append(None)
         elif kind is None:
             file_refs.append(Unreadable(name or "File", unreadable_message(name)))
+            kinds.append(None)
         else:
             file_refs.append(lib.store_input(data, kind, name))
+            kinds.append(
+                registry.route(
+                    kind, data, image_mode=options.image_mode, link_mode=options.link_mode
+                )
+            )
 
+    modes = {"image_mode": options.image_mode, "link_mode": options.link_mode}
     link_refs = [InputRef(kind="link", url=link) for link in links]
-    plans = plan_jobs([r for r, _ in named_texts], file_refs, link_refs, options.groups)
+    plans = plan_jobs(
+        [r for r, _ in named_texts],
+        file_refs,
+        link_refs,
+        options.groups,
+        kinds=kinds,
+        link_kinds=[registry.route("link", **modes) for _ in link_refs],
+        groupable=registry.groupable(),
+        not_yet=lambda ref: registry.not_yet_message(ref, **modes),
+    )
     for plan, (_, name) in zip(plans, named_texts, strict=False):
         plan.name = name  # pasted texts come first, named by their first line
     return lib.create_batch(plans, options)

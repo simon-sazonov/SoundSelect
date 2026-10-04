@@ -1,23 +1,103 @@
 """Parsing chords: pairing chord lines with their lyrics and reading every chord symbol.
 
 H is B natural, as on Russian and German sheets; when a sheet uses H anywhere, its plain B means
-B♭. Text in a chord line that is not a chord is kept, marked unreadable and reported, so it can
-be checked (later, a photo's unreadable chord line gets a second read).
+B♭. A Russian sheet without H may still mean B♭ by B: when its chords fit that reading clearly
+better, B is read as B♭ and a notice says so. English sheets, and sheets that write B♭ or A♯
+themselves, keep B as B natural. A correction can set the reading either way.
+
+Text in a chord line that is not a chord is kept, marked unreadable and reported, so it can be
+checked (later, a photo's unreadable chord line gets a second read).
 """
 
 from __future__ import annotations
 
+import re
+
 from ..core.chords import parse_chord
+from ..core.keyfind import find_key
+from ..core.keys import Key
+from ..core.pitch import Pitch
 from ..core.song import ChordFix, Notice, SourceRef
 from .lines import clean_chord_text, repeat_count
-from .model import ParsedChord, ParsedLine, ParsedSection, ParsedSheet, SortedSheet, Token
+from .model import (
+    ParsedChord,
+    ParsedLine,
+    ParsedSection,
+    ParsedSheet,
+    SheetMeta,
+    SortedSheet,
+    Token,
+)
 
-VERSION = "2"
+VERSION = "3"
+
+B_FLAT_GAIN = 0.5  # key-fit gain per chord that B♭ needs before a sheet's B is read as B♭
+_EXPLICIT_B_FLAT_RE = re.compile(r"(?:^|/)(?:[BВ][b♭]|A[#♯])")
+_CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
+B_FLAT_GUESS = Notice(
+    level="info",
+    code="b_flat_guess",
+    message="This sheet's B is read as B♭ (си-бемоль), the Russian way: its chords fit that much "
+    "better than B (си). If that's wrong, set “B on the sheet” to B (си) under Fix.",
+)
 
 
-def _chord(token: Token, uses_h: bool) -> ParsedChord | None:
+def reads_differently(text: str) -> bool:
+    """Whether a chord means something else when a plain B is B♭ (B as root or bass)."""
+    core = clean_chord_text(text)
+    plain, flat = parse_chord(core), parse_chord(core, b_is_flat=True)
+    return plain is not None and flat is not None and plain.symbol != flat.symbol
+
+
+def _key_fit(texts: list[str], b_is_flat: bool) -> float:
+    chords = [c for c in (parse_chord(t, b_is_flat=b_is_flat) for t in texts) if c]
+    finding = find_key(chords)
+    return finding.best.score if finding else 0.0
+
+
+def b_reading(sorted_sheet: SortedSheet, corrected: bool | None = None) -> tuple[bool, bool]:
+    """What a plain B on the sheet means: (B means B♭, guessed from the chords)."""
+    if corrected is not None:
+        return corrected, False
+    if sorted_sheet.uses_h:
+        return True, False
+    lines = sorted_sheet.lines
+    texts = [
+        clean_chord_text(t.text)
+        for line in lines
+        if line.kind in ("chords", "section", "lyrics")
+        for t in line.tokens
+        if t.kind == "chord"
+    ]
+    differing = [t for t in texts if reads_differently(t)]
+    if not differing or any(_EXPLICIT_B_FLAT_RE.search(t) for t in texts):
+        return False, False  # no B to read, or the sheet spells B♭ itself
+    words = (line.text for line in lines if line.kind in ("lyrics", "header", "meta", "section"))
+    if not any(_CYRILLIC_RE.search(w) for w in words):
+        return False, False  # English sheets mean B natural
+    gain = (_key_fit(texts, True) - _key_fit(texts, False)) / len(differing)
+    guess = gain >= B_FLAT_GAIN
+    return guess, guess
+
+
+def _flat_stated_key(meta: SheetMeta) -> SheetMeta:
+    """A stated key written with a Latin B, on a sheet whose B means B♭."""
+    stated = meta.stated_key
+    if not stated or stated.strip()[:1] not in ("B", "b"):
+        return meta
+    try:
+        key = Key.parse(stated)
+    except ValueError:
+        return meta
+    if key.tonic.letter != "B" or key.tonic.alter != 0:
+        return meta
+    flat = Key(Pitch("B", -1), key.mode)
+    return meta.model_copy(update={"stated_key": f"{flat.tonic} {flat.mode}"})
+
+
+def _chord(token: Token, b_is_flat: bool) -> ParsedChord | None:
     if token.kind == "chord":
-        c = parse_chord(clean_chord_text(token.text), b_is_flat=uses_h)
+        c = parse_chord(clean_chord_text(token.text), b_is_flat=b_is_flat)
         if c is not None:
             return ParsedChord(text=token.text, symbol=c.symbol, pos=token.pos)
         return ParsedChord(text=token.text, symbol=None, pos=token.pos, readable=False)
@@ -37,12 +117,17 @@ def _union(a: SourceRef | None, b: SourceRef | None) -> SourceRef | None:
     return SourceRef(page=a.page, box=box)
 
 
-def _chords(tokens: list[Token], uses_h: bool) -> list[ParsedChord]:
-    return [c for t in tokens if (c := _chord(t, uses_h)) is not None]
+def _chords(tokens: list[Token], b_is_flat: bool) -> list[ParsedChord]:
+    return [c for t in tokens if (c := _chord(t, b_is_flat)) is not None]
 
 
-def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) -> ParsedSheet:
-    uses_h = sorted_sheet.uses_h
+def parse_sheet(
+    sorted_sheet: SortedSheet,
+    fixes: list[ChordFix] | None = None,
+    b_fix: bool | None = None,
+) -> ParsedSheet:
+    """``b_fix`` is the player's word on what a plain B means (None: read it from the sheet)."""
+    b_is_flat, guessed = b_reading(sorted_sheet, b_fix)
     sections: list[ParsedSection] = [ParsedSection()]
     lines = sorted_sheet.lines
     i = 0
@@ -58,7 +143,7 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
                 )
                 sections[-1].lines.append(
                     ParsedLine(
-                        chords=_chords(line.tokens, uses_h),
+                        chords=_chords(line.tokens, b_is_flat),
                         repeat=repeat,
                         index=line.index,
                         source=line.source,
@@ -66,7 +151,7 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
                 )
         elif line.kind == "chords":
             nxt = lines[i + 1] if i + 1 < len(lines) else None
-            chords = _chords(line.tokens, uses_h)
+            chords = _chords(line.tokens, b_is_flat)
             if nxt is not None and nxt.kind == "lyrics" and not nxt.tokens:
                 sections[-1].lines.append(
                     ParsedLine(
@@ -88,7 +173,7 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
             sections[-1].lines.append(
                 ParsedLine(
                     lyrics=line.lyrics or "",
-                    chords=_chords(line.tokens, uses_h),
+                    chords=_chords(line.tokens, b_is_flat),
                     repeat=line.repeat,
                     index=line.index,
                     source=line.source,
@@ -98,20 +183,22 @@ def parse_sheet(sorted_sheet: SortedSheet, fixes: list[ChordFix] | None = None) 
 
     if not sections[0].lines:
         sections = sections[1:]
-    sheet = ParsedSheet(sections=sections, meta=sorted_sheet.meta)
+    meta = _flat_stated_key(sorted_sheet.meta) if b_is_flat else sorted_sheet.meta
+    sheet = ParsedSheet(sections=sections, meta=meta)
     if fixes:
-        sheet = apply_chord_fixes(sheet, fixes, uses_h)
-    return sheet.model_copy(update={"notices": _notices(sheet)})
+        sheet = apply_chord_fixes(sheet, fixes, b_is_flat)
+    notices = ([B_FLAT_GUESS] if guessed else []) + _notices(sheet)
+    return sheet.model_copy(update={"notices": notices})
 
 
-def apply_chord_fixes(sheet: ParsedSheet, fixes: list[ChordFix], uses_h: bool) -> ParsedSheet:
+def apply_chord_fixes(sheet: ParsedSheet, fixes: list[ChordFix], b_is_flat: bool) -> ParsedSheet:
     """Apply the player's chord corrections: one occurrence, or every occurrence of a chord."""
     sheet = sheet.model_copy(deep=True)
     all_lines = [line for s in sheet.sections for line in s.lines]
     for fix in fixes:
         replacement = None
         if fix.to.strip():
-            c = parse_chord(fix.to, b_is_flat=uses_h)
+            c = parse_chord(fix.to, b_is_flat=b_is_flat)
             replacement = c.symbol if c else None
             if replacement is None:
                 continue
@@ -120,7 +207,7 @@ def apply_chord_fixes(sheet: ParsedSheet, fixes: list[ChordFix], uses_h: bool) -
             if 0 <= fix.line < len(all_lines) and 0 <= fix.index < len(all_lines[fix.line].chords):
                 targets.append((all_lines[fix.line], fix.index))
         else:
-            orig = parse_chord(fix.original, b_is_flat=uses_h)
+            orig = parse_chord(fix.original, b_is_flat=b_is_flat)
             for line in all_lines:
                 for k, pc in enumerate(line.chords):
                     if pc.text == fix.original or (orig and pc.symbol == orig.symbol):

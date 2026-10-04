@@ -49,6 +49,7 @@ def test_large_file(library, monkeypatch):
         service.start_import(library, files=[("big.pdf", b"%PDF-" + b"0" * 10)])
 
 
+@pytest.mark.usefixtures("without_song", "without_sheet_music")
 def test_every_item_gets_a_job(library, sheet_text, data_dir):
     pdf = (data_dir / "pdf" / "found_a_love_mono.pdf").read_bytes()
     batch = service.start_import(
@@ -72,12 +73,11 @@ def test_every_item_gets_a_job(library, sheet_text, data_dir):
         "https://youtu.be/abc",
     ]  # fmt: skip
     waiting = [j.name for j in batch.jobs if j.status == "queued"]
-    assert waiting == names[:3]
+    assert waiting == [*names[:3], "page.jpg"]  # a photo is read, and fails when it runs
     errors = {j.name: j.error for j in batch.jobs if j.status == "failed"}
     assert errors == {
         "song.txt": "This file is empty.",
         "notes.docx": "SoundSelect can't read .docx files. Save the sheet as a PDF or plain text.",
-        "page.jpg": "Photos can't be read yet: photo reading is the next build phase.",
         "track.mp3": "Songs from audio files come in a later build phase.",
         "lesson.mp4": "Sheet music videos come in a later build phase.",
         "https://youtu.be/abc": "Links (YouTube and others) come in a later build phase.",
@@ -85,14 +85,16 @@ def test_every_item_gets_a_job(library, sheet_text, data_dir):
     assert batch.jobs[2].inputs[0].kind == "pdf" and batch.jobs[2].kind == "chord_sheet"
 
 
-def test_grouped_photos_wait_for_photo_reading(library):
+def test_grouped_photos(library):
     batch = service.start_import(
         library,
         files=[("p1.jpg", b"\xff\xd8\xff"), ("p2.jpg", b"\xff\xd8\xff\x00"), ("p3.png", b"\x89PN")],
-        options=ImportOptions(groups=[[0, 1]]),
+        options=ImportOptions(groups=[[1, 0]]),
     )
-    assert [j.name for j in batch.jobs] == ["p1.jpg, p2.jpg", "p3.png"]
-    assert batch.jobs[0].error.startswith("Stacking several files")
+    jobs = [(j.name, j.kind, j.status) for j in batch.jobs]
+    assert jobs[1] == ("p3.png", "chord_sheet", "queued")
+    assert jobs[0][1:] == ("chord_sheet", "queued")
+    assert [r.name for r in batch.jobs[0].inputs] == ["p2.jpg", "p1.jpg"]  # in the group's order
 
 
 def test_library_list(library, sheet_text, data_dir):

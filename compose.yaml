@@ -1,0 +1,25 @@
+# The app and the job worker, sharing one library folder (a Docker volume).
+#   docker compose up -d     then open http://localhost:8000
+# Songs from audio take minutes each, so they run in the worker, one at a time, and the app
+# stays quick. The voice and note models download into the library on first use.
+services:
+  app:
+    build: .
+    command: ["soundselect", "serve", "--host", "0.0.0.0", "--port", "8000", "--workers", "0"]
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - library:/data
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["soundselect", "worker", "--workers", "1"]
+    volumes:
+      - library:/data
+    restart: unless-stopped
+    depends_on:
+      - app
+
+volumes:
+  library:

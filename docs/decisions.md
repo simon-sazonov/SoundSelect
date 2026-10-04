@@ -181,3 +181,155 @@ with a box for every line.
 **The pictures a piece is made from live in the library folder** (`sheetmusic/`, by SHA-256),
 so a saved step points at them by name and a correction never reads the pictures again. The
 clean copy's page list is kept beside them, so its pages and PDF come back without re-reading.
+
+## Hooks for the next phases
+
+Photos (Phase 2) and sheet music (Phase 3) are built side by side, so the spots both touch
+landed once, before either.
+
+**One OpenCV for everything: `opencv-python-headless` 4.** RapidOCR asks for `opencv-python`
+and homr for the headless build; both installed side by side share one `cv2` folder and break
+homr. A uv override drops `opencv-python`, and everything uses the headless OpenCV 4, which
+needs no screen libraries on the home server.
+
+**onnxruntime below 1.24 on Intel Macs.** onnxruntime 1.24 and later has no Intel Mac wheels,
+though homr asks for 1.24.1 or later. Another override keeps Intel Macs on 1.20 to 1.23 and
+everything else on 1.24.1 or later. uv never builds these from source.
+
+**Extras for the heavy tools.** The photo reader (RapidOCR, onnxruntime, OpenCV, HEIC
+support) is in the main install. Sheet music (`sheetmusic`: homr, music21), links (`links`:
+yt-dlp) and audio (`audio`: PyAV, which decodes audio and video files for the song tool) are
+extras; `uv sync --all-extras` installs everything, and CI does too. Without an
+extra the app still runs: Health says which tools are there, and an item that needs a missing
+one fails with a message saying to install it.
+
+**Pipelines register themselves.** Each phase's package registers its pipeline with
+`register_pipeline`; its name is its job kind ("sheet_music", "song"). Importing a package stays
+cheap: the heavy libraries are imported inside functions. A pipeline can say whether its tools
+are installed (`available`), whether it should read an image (`claims`), and how to draw its
+source pages (`pages`).
+
+**Routing and grouping.** `route` sends each item to a pipeline: text and PDF to chord
+sheets; images to sheet music when it claims them (or `image_mode` says so), else to chord
+sheet photos; videos to sheet music; audio to songs; links by `link_mode`. A group is always
+one song or piece, from files that go to the same pipeline, which must read several files at
+once. Sheet music screenshots in no group make one piece, since a piece's pages are usually
+chosen together.
+
+**Page numbers run across a song's files.** Each kind of file with pages registers how to count
+and draw them; a song's pages are numbered across its files in order, so a two-page PDF then a
+photo gives pages 0, 1 and 2. Drawn pages are kept under the pipeline's name and its inputs.
+
+## Phase 2
+
+**Photos are read on this computer.** RapidOCR (PaddleOCR's models, run by onnxruntime)
+reads each picture; nothing is sent anywhere. Its built-in model reads Latin letters, digits
+and signs, so every chord, but no Cyrillic. Russian lyrics need PaddleOCR's East Slavic model,
+which RapidOCR downloads the first time (about 8 MB) and keeps. Both models read every piece of
+text and the surer reading wins. Without the internet on first use the chords still come
+through, and the song says some writing couldn't be read. The AI reader the plan keeps as a
+fallback (`settings.photo_reader = "ai"`) is not built: the local reader is to be judged on
+your real photos first.
+
+**A photo is prepared the same way every time.** The page is cut out of a darker background
+and flattened when its edges are clear, the picture is sized to 1400 to 2000 pixels on its long
+side, and a tilt of up to 6 degrees is levelled by finding the angle at which the rows of ink
+separate most sharply. All of it depends only on the file, so the picture shown beside a song,
+drawn again long after reading, is the one the line boxes were measured on. The phone's
+orientation tag is followed; a photo with a wrong tag is read sideways. iPhone HEIC photos open
+through pillow-heif.
+
+**Words become lines the way the PDF reader does it.** Each word read comes with its box, its
+letters share its width evenly, and the PDF reader's layout puts each chord over the letter it
+sits above, splits pages printed in two columns and drops page numbers and web addresses in
+the margins. In a row that is otherwise chords, two chords read as one word (`Bb/DCm7`) are
+split, and `rn` read for `m` is put right. A chord read with little certainty is pointed out.
+
+**Scanned PDFs are photos.** A PDF page with only a picture on it is drawn at twice its shown
+size and read by the photo reader, with boxes in the page's shown size, so the source view
+works as for any PDF.
+
+**A group is one song from several files,** read in the order given, its pages numbered on
+across the files (a two-page PDF then a photo gives pages 0, 1 and 2). Its fingerprint is made
+from the files' contents in order, so the same photos under other names are the same song.
+
+**Measured on the test pictures** (made from the sample sheets by
+`backend/tests/data/photos/make.py`): a screenshot, a phone-style photo at an angle on a dark
+table, the scanned PDF and a song over two pictures all give every chord and the key right,
+each chord within a letter of its place. Reading takes about a second a picture on the
+cloud test machine.
+
+## Before the real sheets
+
+**B or B♭ on Russian sheets without H.** A sheet with H means B♭ by its plain B; a sheet
+without H, with Russian words, no B♭ or A♯ of its own, and chords that fit a key much better
+with B♭ (at least half a point of key fit per chord that changes) is read as B♭, with a
+notice and a "B on the sheet" choice under Fix to undo it; English sheets keep B natural.
+
+**A stated key keeps all its words.** "Тональность: ре минор" and "Key: D minor" are read
+whole, and a line that only starts like a key line ("Key to my heart") stays a lyric.
+
+**Short "Name:" labels.** A line that is just a short name and a colon ("A1:", "B:", "Intro
+riff:") is a section label when chords, a tab or ChordPro follow it, and a title set off by a
+blank line stays the title even when the lyrics run straight into the chords.
+
+**Lowercase chord lines.** A line such as "am  dm" is read as chords when every word is a chord
+once capitalised, and there are two or more of them or Russian lyrics follow.
+
+**Repeat words after chords.** "(2 раза)", "2 times" and "x 2" after chords are read as one
+repeat mark, as "x2" already was.
+
+## Phase 4: songs from audio
+
+**Every engine runs on onnxruntime and numpy.** The plan picked Demucs through audio-separator,
+Basic Pitch and Beat This. On an Intel Mac none of them installs today: PyTorch stops at 2.2
+there (audio-separator needs 2.3 and numpy 2; Beat This needs PyTorch), numba and llvmlite (so
+librosa) have no Intel Mac wheels, and the basic-pitch package pulls TensorFlow or coremltools
+on macOS. So the song tool uses:
+
+- the voice: the MDX-Net vocal model `UVR-MDX-NET-Voc_FT` from the Ultimate Vocal Remover
+  project, run with onnxruntime (`audio/separate.py`, with the model's published spectrogram
+  settings). About 0.6 times the song's length on four cloud cores.
+- the notes: Basic Pitch's own ONNX model file (v0.4.0), with its note decoding ported to numpy
+  (`audio/notes.py`).
+- the beat: the classic onset-strength, tempo and dynamic-programming beat tracker (the method
+  librosa uses), in numpy (`audio/beats.py`); bars from where the bass and kick hit hardest,
+  4/4 unless 3/4 is clearly better.
+- opening any recording: PyAV, which carries its own ffmpeg, so nothing else is installed.
+
+Both models download once into `~/.soundselect/models` and are checked against their SHA-256;
+`SOUNDSELECT_MODELS` points at a folder of models instead. Demucs and Beat This can join later
+as optional engines where PyTorch installs (Linux, Docker, Apple-chip Macs).
+
+**Separated parts are files, the rest is saved by the step runner.** The voice and the band,
+mono at 22.05 kHz in half-precision, sit in `~/.soundselect/audio/<recording>/` (about 20 MB a
+song); a key or octave correction never separates again, and a missing file is simply made
+again. A link's download is kept there too.
+
+**Tuning first.** The recording's distance from A = 440 Hz (from its sharpest spectral peaks)
+is measured before notes are found, and the voice is retuned for the note finder, so a record
+a quarter tone off doesn't land between keys. More than 15 cents off gets a note to the player.
+
+**Melody.** Overtone ghosts are dropped (an octave, octave and fifth, two octaves, two octaves
+and a third above a louder note), the louder and higher note wins where notes overlap, short
+neighbour notes (vibrato, scoops) fold into the note they decorate, and notes where the voice
+part is nearly silent (what leaks through in an intro) are dropped. With hardly any singing
+(an instrumental), the melody comes from the whole mix and the player is told.
+
+**Rhythm.** Times become beats along the beats found, one beat at a time, then snap to
+sixteenths; bar 1 starts at the downbeat at or before the first note. Tiny gaps close up.
+Notes heard less clearly than 0.4 count as doubtful and are listed in a note to the player;
+every song says its melody is a draft.
+
+**Key.** From the melody (how long each pitch class is held) and the band's sound (how strongly
+each pitch class rings), half each, against the Krumhansl-Kessler profiles. Chords recognized
+from the band will add their evidence in a later phase.
+
+**Octave.** The melody moves by whole octaves to sit in the player's comfortable range, unless
+the player set `melody_octave`.
+
+**Links** wait for the shared download module from the sheet music phase; until it lands, a
+link job fails with a message that says so.
+
+**Docker Compose** runs the app and one worker on one library volume; songs take minutes, so
+they run one at a time in the worker and the app stays quick.

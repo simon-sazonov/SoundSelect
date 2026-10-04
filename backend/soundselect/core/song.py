@@ -184,7 +184,9 @@ class MelodyNote(Model):
 
 class Melody(Model):
     notes: list[MelodyNote] = Field(default_factory=list)
-    octave_shift: int = Field(0, description="Octaves the melody was moved to fit the range.")
+    octave_shift: int = Field(
+        0, description="Octaves the written melody is moved to fit the comfortable range."
+    )
     source: Literal["audio", "sheet_music"]
 
 
@@ -217,6 +219,11 @@ class Corrections(Model):
         None,
         description="Sheet music: the instrument the page is written for ('alto_sax', or "
         "'concert' for concert pitch), instead of what was read from its part name.",
+    )
+    b_is_flat: bool | None = Field(
+        None,
+        description="What a plain B on the sheet means: true B♭ (Russian and German sheets), "
+        "false B natural; null reads it from the sheet.",
     )
 
 

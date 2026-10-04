@@ -1,8 +1,10 @@
 """Sorting a sheet's lines.
 
 Each line is marked as header (title and artist), meta (capo, tuning, key, tempo), section
-label ([Verse], Припев:), chord line, lyric line, guitar tab or chord diagram. Chords written
-inside the lyrics, ChordPro style ([Am]words), are found here too, with their positions.
+label ([Verse], Припев:, A1:), chord line, lyric line, guitar tab or chord diagram. Chords written
+inside the lyrics, ChordPro style ([Am]words), are found here too, with their positions. Chord
+lines written in lowercase (am  dm) are read as chords. Whether the sheet writes B natural as H,
+as a root or a bass note, is noted here; what a plain B means is decided when chords are parsed.
 """
 
 from __future__ import annotations
@@ -10,10 +12,11 @@ from __future__ import annotations
 import re
 
 from ..core.chords import parse_chord
+from ..core.keys import Key
 from ..core.song import SectionKind
 from .model import SheetMeta, SheetText, SortedLine, SortedSheet, Token, TokenKind
 
-VERSION = "1"
+VERSION = "2"
 
 _SECTION_WORDS: list[tuple[str, SectionKind]] = [
     (r"pre[\s-]?chorus|предприпев|пред[\s-]?припев", "pre_chorus"),
@@ -41,6 +44,9 @@ _PAREN_LABEL_RE = re.compile(r"^\s*\(([^)]+)\)\s*:?\s*$")
 _CHORDPRO_RE = re.compile(r"\[([^\]]*)\]")
 _DIRECTIVE_RE = re.compile(r"^\s*\{\s*([a-z_]+)\s*(?::\s*(.*?))?\s*\}\s*$", re.IGNORECASE)
 _UG_TAGS_RE = re.compile(r"\[/?(?:ch|tab)\]", re.IGNORECASE)
+_SHORT_LABEL_RE = re.compile(r"^\s*(?P<name>[^\s:][^:]{0,23}?)\s*:\s*$")
+_H_RE = re.compile(r"(?:^|/)[HН]")
+_CYRILLIC_RE = re.compile(r"[А-Яа-яЁё]")
 _ROMAN = {
     "i": 1,
     "ii": 2,
@@ -133,6 +139,12 @@ def _split_token(text: str, pos: int) -> list[tuple[str, int]]:
 
 
 def tokenize(line: str) -> list[Token]:
+    # a repeat written as several words at the end ("(2 раза)", "2 times") is one token
+    tail = _REPEAT_TAIL_RE.search(line)
+    if tail and tail.start() > 0 and re.search(r"\s", tail.group(0).strip()):
+        text = tail.group(0).strip()
+        pos = tail.start() + len(tail.group(0)) - len(tail.group(0).lstrip())
+        return [*tokenize(line[: tail.start()]), Token(text=text, pos=pos, kind="repeat")]
     tokens = []
     for m in re.finditer(r"\S+", line):
         for text, pos in _split_token(m.group(0), m.start()):
@@ -215,6 +227,60 @@ def _label(line: str) -> tuple[str, SectionKind, int | None, str] | None:
     return label, section_kind(label) or "other", repeat, rest
 
 
+def _is_tab(line: str) -> bool:
+    return line.count("-") >= 4 and bool(_TAB_RE.match(line))
+
+
+def _short_label(line: str) -> tuple[str, SectionKind, int | None] | None:
+    """A short name and a colon on a line of its own ("A1:", "Intro riff:", "B:")."""
+    m = _SHORT_LABEL_RE.match(line)
+    if not m:
+        return None
+    name, repeat = m.group("name").strip(), None
+    tail = _REPEAT_TAIL_RE.search(name)
+    if tail and tail.start() > 0:
+        repeat, name = int(tail.group(1) or tail.group(2)), name[: tail.start()].strip()
+    if len(name.split()) > 3:
+        return None
+    return name, section_kind(name) or "other", repeat
+
+
+def _music_line(text: str) -> bool:
+    """Whether a source line is chords, tab or ChordPro, as a label's next line should be."""
+    return is_chord_line(tokenize(text)) or _is_tab(text) or _chordpro(text) is not None
+
+
+def _capitalized(tokens: list[Token], next_text: str) -> list[Token] | None:
+    """A chord line written in lowercase ("am  dm"): the tokens with capital first letters."""
+    fixed = []
+    for t in tokens:
+        if t.kind == "other":
+            text = t.text[:1].upper() + t.text[1:]
+            if classify_token(text) != "chord":
+                return None
+            t = t.model_copy(update={"text": text, "kind": "chord"})
+        fixed.append(t)
+    chords = sum(1 for t in fixed if t.kind == "chord")
+    if chords >= 2 or (chords and _CYRILLIC_RE.search(next_text)):
+        return fixed
+    return None
+
+
+def _stated_key(value: str) -> str | None:
+    """The key named at the start of a key line: 'ре минор', 'D minor', 'Am' of 'Am, capo 3'."""
+    words = value.split()
+    for n in (3, 2, 1):
+        if len(words) < n:
+            continue
+        candidate = " ".join(words[:n]).strip(" ,;.()[]")
+        try:
+            Key.parse(candidate)
+        except ValueError:
+            continue
+        return candidate
+    return None
+
+
 def _capo(value: str) -> int:
     v = value.strip().lower()
     if re.match(r"^(?:no|none|нет|без)\b", v) or not v:
@@ -287,6 +353,11 @@ def sort_lines(sheet: SheetText) -> SortedSheet:
     meta = SheetMeta()
     out: list[SortedLine] = []
     in_tab = False
+    texts = [_UG_TAGS_RE.sub("", tl.text).rstrip() for tl in sheet.lines]
+
+    def next_text(index: int) -> str:
+        return next((t for t in texts[index + 1 :] if t.strip()), "")
+
     for index, tl in enumerate(sheet.lines):
         raw = _UG_TAGS_RE.sub("", tl.text)
         line = raw.rstrip()
@@ -308,7 +379,7 @@ def sort_lines(sheet: SheetText) -> SortedSheet:
             elif name in ("subtitle", "st", "artist"):
                 meta.artist = value or meta.artist
             elif name == "key":
-                meta.stated_key = value or None
+                meta.stated_key = _stated_key(value)
             elif name == "capo":
                 meta.capo = _capo(value)
             elif name == "tempo" and re.match(r"^\d+(\.\d+)?$", value):
@@ -339,7 +410,7 @@ def sort_lines(sheet: SheetText) -> SortedSheet:
         if any(_DIAGRAM_RE.match(t.text) for t in tokens):
             out.append(SortedLine(kind="diagram", **common))
             continue
-        if line.count("-") >= 4 and _TAB_RE.match(line):
+        if _is_tab(line):
             out.append(SortedLine(kind="tab", **common))
             continue
 
@@ -364,6 +435,17 @@ def sort_lines(sheet: SheetText) -> SortedSheet:
             )
             continue
 
+        short = _short_label(line)
+        previous = next((o.kind for o in reversed(out) if o.kind != "blank"), None)
+        if short and previous != "chords" and _music_line(next_text(index)):
+            name, kind, repeat = short
+            out.append(
+                SortedLine(kind="section", section=kind, label=name, repeat=repeat, **common)
+            )
+            continue
+
+        if not is_chord_line(tokens):
+            tokens = _capitalized(tokens, next_text(index)) or tokens
         if is_chord_line(tokens):
             repeat = next((repeat_count(t.text) for t in tokens if t.kind == "repeat"), None)
             out.append(SortedLine(kind="chords", tokens=tokens, repeat=repeat, **common))
@@ -383,7 +465,7 @@ def sort_lines(sheet: SheetText) -> SortedSheet:
 
     _mark_header(out, meta)
     uses_h = any(
-        t.kind == "chord" and clean_chord_text(t.text)[:1] in ("H", "Н")
+        t.kind == "chord" and _H_RE.search(clean_chord_text(t.text))
         for line in out
         if line.kind in ("chords", "section", "lyrics")
         for t in line.tokens
@@ -410,7 +492,10 @@ def _meta_line(line: str, meta: SheetMeta) -> str | None:
             meta.tuning = tuning_offset(value)
             meta.tuning_text = value or None
         elif name == "key":
-            meta.stated_key = value.split()[0] if value else None
+            stated = _stated_key(value)
+            if stated is None:
+                continue  # "Key to my heart" is a lyric line
+            meta.stated_key = stated
         elif name == "tempo":
             meta.tempo = float(value)
         elif name == "time":
@@ -444,7 +529,17 @@ def _mark_header(lines: list[SortedLine], meta: SheetMeta) -> None:
         and lines[first_music].kind != "section"
     )
     if runs_into_chords:
-        return
+        # unless a short first paragraph (one or two lines) is set off by a blank line
+        blank = next((i for i, line in enumerate(lines) if line.kind == "blank"), len(lines))
+        first = [i for i in candidates if i < blank]
+        if (
+            not 1 <= len(first) <= 2
+            or blank >= candidates[-1]
+            or any(lines[i].kind not in ("lyrics", "meta") for i in range(blank))
+            or any(len(lines[i].text.strip()) > 60 for i in first)
+        ):
+            return
+        candidates = first
     texts = [lines[i].text.strip() for i in candidates]
     for i in candidates:
         lines[i] = lines[i].model_copy(update={"kind": "header", "lyrics": None, "repeat": None})

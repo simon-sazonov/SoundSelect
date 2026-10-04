@@ -15,7 +15,16 @@ dependencies = [
     "python-multipart>=0.0.9",
     "huey>=2.5",
     "pdfplumber>=0.11",
+    "rapidocr>=3.9",
+    "onnxruntime>=1.20",
+    "opencv-python-headless>=4.10,<5",
+    "pillow-heif>=1.0",
 ]
+
+[project.optional-dependencies]
+sheetmusic = ["homr>=0.7", "music21>=9.1"]
+links = ["yt-dlp[default]>=2025.1"]
+audio = ["av>=14"]
 
 [project.scripts]
 soundselect = "soundselect.cli:main"
@@ -25,6 +34,16 @@ dev = [
     "httpx2>=2.13.1",
     "pytest>=8",
     "ruff>=0.6",
+]
+
+[tool.uv]
+override-dependencies = [
+    # rapidocr asks for opencv-python, which beside homr's opencv-python-headless breaks homr:
+    # everything uses the one OpenCV 4 above.
+    "opencv-python; sys_platform == 'never'",
+    # onnxruntime 1.24 and later has no Intel Mac wheels (homr asks for 1.24.1 or later).
+    "onnxruntime>=1.20,<1.24; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "onnxruntime>=1.24.1; sys_platform != 'darwin' or platform_machine != 'x86_64'",
 ]
 
 [build-system]

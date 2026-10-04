@@ -7,6 +7,7 @@ kept in ``docs/openapi.json``), so the screens are built against what the back e
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
 import re
 from collections.abc import AsyncIterator
@@ -23,11 +24,13 @@ from .. import __version__, service
 from ..core.instruments import INSTRUMENTS
 from ..core.names import NameSystem
 from ..core.song import Model, Song
-from ..imports import ImportOptions, LinkMode
+from ..imports import ImageMode, ImportOptions, LinkMode
 from ..jobs import JobQueue
+from ..pipeline.registry import ready
 from ..render.pdf import pdf_available
 from ..render.scores import song_score
 from ..settings import Settings
+from ..sheets.readers import READERS
 from ..store import BatchInfo, JobInfo, Library, SongList
 from .errors import ERRORS, ApiError, ErrorResponse
 
@@ -104,10 +107,14 @@ def create_import(
     ] = None,
     files: Annotated[
         list[UploadFile] | None,
-        File(description="Files: text and PDF chord sheets now; photos, audio and video later."),
+        File(
+            description="Files: text, PDF and photos of chord sheets; screenshots and videos "
+            "of sheet music; audio files. Each is read once its phase is built."
+        ),
     ] = None,
     link: Annotated[
-        list[str] | None, Form(description="Links, e.g. YouTube (read from a later phase).")
+        list[str] | None,
+        Form(description="Links (YouTube and others): sheet music videos or songs; see link_mode."),
     ] = None,
     instrument: Annotated[str | None, Form()] = None,
     title: Annotated[str | None, Form(description="For a single song.")] = None,
@@ -116,14 +123,16 @@ def create_import(
     capo: Annotated[int | None, Form(ge=0, le=12, description="For a single song.")] = None,
     groups: Annotated[
         str | None,
-        Form(description="Files that make one song together, as JSON: [[0, 1], [2]]."),
+        Form(description="Files that make one song or piece together, as JSON: [[0, 1], [2]]."),
     ] = None,
+    image_mode: Annotated[ImageMode, Form()] = "auto",
     link_mode: Annotated[LinkMode, Form()] = "auto",
 ) -> BatchInfo:
-    """Start making songs: pasted text, files and links, one song each (photos can be
-    grouped into one song). Returns at once with a batch holding a job per song; follow it
-    with ``GET /batches/{id}`` or the event stream. Inputs that can't be read yet get a job
-    that has already failed with the reason, so every item shows up in the batch."""
+    """Start making songs: pasted text, files and links, one song each. Files can be grouped
+    into one song or piece, and sheet music screenshots in no group make one piece. Returns at
+    once with a batch holding a job per song; follow it with ``GET /batches/{id}`` or the event
+    stream. Inputs that can't be read yet get a job that has already failed with the reason, so
+    every item shows up in the batch."""
     try:
         parsed_groups = json.loads(groups) if groups else None
         options = ImportOptions(
@@ -133,6 +142,7 @@ def create_import(
             key=key or None,
             capo=capo,
             groups=parsed_groups,
+            image_mode=image_mode,
             link_mode=link_mode,
         )
     except (json.JSONDecodeError, ValidationError) as exc:
@@ -573,6 +583,7 @@ class Tools(Model):
     pdf_output: bool = Field(description="Song pages as PDF (needs the Pango library).")
     pdf_reading: bool
     photo_reading: bool
+    sheet_music: bool
     audio: bool
     links: bool
 
@@ -590,6 +601,7 @@ class Health(Model):
 @router.get("/health", response_model=Health, tags=["settings"])
 def health(lib: Lib, queue: Queue) -> Health:
     """Whether the app is up, and which tools are installed."""
+    sheet_music, audio = ready("sheet_music"), ready("song")
     return Health(
         version=__version__,
         songs=lib.count_songs(),
@@ -598,8 +610,9 @@ def health(lib: Lib, queue: Queue) -> Health:
         tools=Tools(
             pdf_output=pdf_available(),
             pdf_reading=True,
-            photo_reading=False,
-            audio=False,
-            links=False,
+            photo_reading="photo" in READERS,
+            sheet_music=sheet_music,
+            audio=audio,
+            links=importlib.util.find_spec("yt_dlp") is not None and (sheet_music or audio),
         ),
     )

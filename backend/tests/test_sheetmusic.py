@@ -48,10 +48,11 @@ SHOTS = [DATA / f"screenshot_{i}.jpg" for i in (1, 2, 3)]
 def _homr_ready() -> bool:
     if importlib.util.find_spec("homr") is None or importlib.util.find_spec("rapidocr") is None:
         return False
-    from homr.main import default_config, segnet_path_onnx
+    from homr.main import default_config, segnet_path_onnx, segnet_path_onnx_fp16
 
-    paths = [segnet_path_onnx, default_config.filepaths.encoder_path]
-    return all(Path(p).exists() for p in paths)
+    # on a Mac homr fetches the fp16 segnet for CoreML instead of the fp32 one
+    segnet = Path(segnet_path_onnx).exists() or Path(segnet_path_onnx_fp16).exists()
+    return segnet and Path(default_config.filepaths.encoder_path).exists()
 
 
 needs_homr = pytest.mark.skipif(not _homr_ready(), reason="homr or its models aren't installed")

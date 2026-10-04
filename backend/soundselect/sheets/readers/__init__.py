@@ -1,14 +1,14 @@
 """Reader plug-ins: each turns one kind of input into lines of text with their positions.
 
 Adding a source means adding one reader here and nothing else. Text arrives in Phase 0, PDF in
-Phase 1 and photos in Phase 2.
+Phase 1 and photos (with groups of several files that make one song) in Phase 2.
 """
 
 from __future__ import annotations
 
 import hashlib
 import os
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePath
 
@@ -30,6 +30,7 @@ class SheetInput:
     data: str | bytes
     name: str | None = None
     kind: str | None = None
+    parts: tuple[SheetInput, ...] = ()  # a group: inputs that make one song together
 
     @classmethod
     def from_path(cls, path: str | os.PathLike[str]) -> SheetInput:
@@ -38,6 +39,8 @@ class SheetInput:
 
     @property
     def raw(self) -> bytes:
+        if self.parts:  # a group is known by what its parts contain, in order
+            return b"".join(hashlib.sha256(p.raw).digest() for p in self.parts)
         return self.data.encode("utf-8") if isinstance(self.data, str) else self.data
 
     def fingerprint(self, reader_kind: str) -> str:
@@ -94,4 +97,32 @@ def read_sheet(inp: SheetInput) -> SheetText:
     return reader(inp)
 
 
-from . import pdf, text  # noqa: E402,F401  (registers the readers)
+# Source pages: the kinds of input that have pages a screen can show beside the reading.
+PageCount = Callable[[bytes], int]
+PageRender = Callable[[bytes, int], bytes]  # file bytes and page index -> PNG
+PAGES: dict[str, tuple[PageCount, PageRender]] = {}
+
+
+def register_pages(kind: str, count: PageCount, render: PageRender) -> None:
+    PAGES[kind] = (count, render)
+
+
+def render_source_page(parts: Sequence[tuple[str, bytes]], index: int) -> bytes:
+    """Page ``index`` of a song's inputs as a PNG. Pages run across the parts in order: a
+    two-page PDF then a photo gives pages 0, 1 and 2. Parts of a kind without pages count as
+    none."""
+    paged = [(PAGES[kind], data) for kind, data in parts if kind in PAGES]
+    if not paged:
+        raise UnsupportedInput("these inputs have no pages to show")
+    if index < 0:
+        raise IndexError(f"no page {index + 1}")
+    at = index
+    for (count, render), data in paged:
+        n = count(data)
+        if at < n:
+            return render(data, at)
+        at -= n
+    raise IndexError(f"no page {index + 1}")
+
+
+from . import pdf, photo, text  # noqa: E402,F401  (registers the readers)
