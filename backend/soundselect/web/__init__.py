@@ -37,6 +37,14 @@ NAME_LABELS = {
 TOGGLE_NAMES = ("russian", "letters", "both", "none")
 MAJOR_TONICS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"]
 MINOR_TONICS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "G#", "A", "Bb", "B"]
+# the melody's octave as the player chooses it, from the plain transposition
+OCTAVE_LABELS = {
+    2: "Two octaves up",
+    1: "An octave up",
+    0: "No octave move",
+    -1: "An octave down",
+    -2: "Two octaves down",
+}
 
 
 @cache
@@ -192,6 +200,7 @@ def song_screen(
             or any(reads_differently(c) for c in sheet_chords),
             corrections=song.corrections,
             fixes=song.corrections.model_dump(mode="json")["chords"],
+            octave_labels=OCTAVE_LABELS,
         )
     )
     head = Markup(_env().get_template("songbar_head.html").render())

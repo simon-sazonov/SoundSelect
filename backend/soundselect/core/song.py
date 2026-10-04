@@ -173,12 +173,17 @@ class Section(Model):
     lines: list[Line] = Field(default_factory=list)
 
 
+DOUBTFUL = 0.4  # a melody note heard less surely than this is marked for checking
+
+
 class MelodyNote(Model):
     concert: str | None = Field(description="Concert pitch with octave; null for a rest.")
     written: str | None = None
     start: float = Field(description="Start in beats from the beginning.")
     length: float = Field(description="Length in beats.")
-    confidence: float | None = None
+    confidence: float | None = Field(
+        None, description="How surely the note was heard, 0 to 1; below 0.4 it is doubtful."
+    )
     out_of_range: bool = False
 
 

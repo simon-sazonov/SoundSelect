@@ -41,6 +41,15 @@
   </section>
   {% endif %}
 
+  {% if melody %}
+  <section class="card melody">
+    <h2>Melody for {{ instrument }}</h2>
+    <p class="reason">{{ melody.meter }}{% if melody.tempo %} · {{ melody.tempo }} beats a minute{% endif %}{% if melody.moved %} · moved {{ melody.moved }} to sit in your range{% endif %}</p>
+    {% if melody.heard %}<p class="reason">Written down from the recording, so check it by ear{% if melody.doubtful == 1 %}; the red note was the hardest to hear{% elif melody.doubtful %}; the {{ melody.doubtful }} red notes were the hardest to hear{% endif %}.</p>{% endif %}
+    <div class="melody-staff">{{ melody.svg }}</div>
+  </section>
+  {% endif %}
+
   {% if scales %}
   <section class="card">
     <h2>More scales for the whole song</h2>
