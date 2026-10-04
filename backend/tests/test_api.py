@@ -294,7 +294,7 @@ def test_health(client, song_id):
     health = client.get(f"{API}/health").json()
     assert health["status"] == "ok" and health["songs"] == 1 and health["jobs_waiting"] == 0
     assert health["workers"] is True and health["tools"]["pdf_reading"] is True
-    assert health["tools"]["photo_reading"] is False
+    assert health["tools"]["photo_reading"] is True
 
 
 def test_search_comes_later(client):

@@ -26,7 +26,7 @@ def test_input_kinds():
     assert detect_kind(SheetInput(b"\x89PNG", "song.png")) == "photo"
     with pytest.raises(UnsupportedInput, match="isn't a PDF that can be opened"):
         read_sheet(SheetInput(b"%PDF-1.7", "song.pdf"))  # cut off after the header
-    with pytest.raises(UnsupportedInput, match="photo sheets is not built yet"):
+    with pytest.raises(UnsupportedInput, match="isn't a picture that can be opened"):
         read_sheet(SheetInput(b"\x89PNG", "song.png"))
 
 

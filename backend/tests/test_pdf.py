@@ -157,7 +157,11 @@ def test_page_images_from_many_threads(pdfs):
     assert images[0] == expected
 
 
-def test_scanned_pdf(pdfs):
+def test_scanned_pdf(pdfs, monkeypatch):
+    """A scan is read by the photo reader (see test_photo); without one it can't be read."""
+    from soundselect.ocr import engine
+
+    monkeypatch.setattr(engine, "available", lambda: False)
     with pytest.raises(ScannedPdf, match="This PDF is a scan"):
         read_sheet(SheetInput.from_path(pdfs / "scanned.pdf"))
     assert issubclass(ScannedPdf, UnsupportedInput)
@@ -172,11 +176,20 @@ def joined(*paths) -> bytes:
     return buffer.getvalue()
 
 
-def test_partly_scanned_pdf(pdfs, found_a_love):
+def test_partly_scanned_pdf(pdfs, found_a_love, monkeypatch):
     data = joined(pdfs / "found_a_love_mono.pdf", pdfs / "scanned.pdf")
     song = analyze_sheet(SheetInput(data, "mixed.pdf"))
+    assert [c.symbol for c in song.chords] == [c.symbol for c in found_a_love.chords]
+    assert {line.source.page for line in song.lines()} == {0, 1}  # the scan is read too
+    assert not song.notes
+
+    from soundselect.ocr import engine
+
+    monkeypatch.setattr(engine, "available", lambda: False)
+    song = analyze_sheet(SheetInput(data, "mixed2.pdf"))
     assert lyrics(song) == lyrics(found_a_love)
-    assert "Page 2 of the PDF is a picture without text" in " ".join(n.message for n in song.notes)
+    notes = " ".join(n.message for n in song.notes)
+    assert "Page 2 of the PDF is a picture, and the photo reader isn't installed" in notes
 
 
 def test_pdf_without_text():

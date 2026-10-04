@@ -35,10 +35,17 @@ def boom(data):
     raise RuntimeError("broken image")
 
 
+@pytest.fixture
+def without_photos(monkeypatch):
+    """As before the photo reader was built."""
+    monkeypatch.delitem(readers.READERS, "photo")
+    monkeypatch.delitem(readers.READERS, "group")
+
+
 # Routing
 
 
-def test_route_with_nothing_more_built():
+def test_route_with_nothing_more_built(without_photos):
     assert route("text") == route("pdf") == "chord_sheet"
     for kind in ("photo", "video", "audio", "link"):
         assert route(kind, PNG) is None, kind
@@ -49,7 +56,7 @@ def test_route_with_nothing_more_built():
     ("claims", "auto"),
     [(lambda data: True, "sheet_music"), (lambda data: False, None), (boom, None)],
 )
-def test_route_images(monkeypatch, claims, auto):
+def test_route_images(monkeypatch, without_photos, claims, auto):
     monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music", claims=claims))
     assert route("photo", PNG) == auto
     assert route("photo", PNG, image_mode="sheet_music") == "sheet_music"
@@ -91,10 +98,15 @@ def test_register_pipeline(monkeypatch):
     assert registry.get_pipeline("song") is spec and registry.ready("song")
 
 
-def test_groupable(monkeypatch, sheet_music):
+def test_groupable(monkeypatch, without_photos, sheet_music):
     assert registry.groupable() == {"sheet_music"}
     monkeypatch.setitem(readers.READERS, "group", lambda inp: None)
     assert registry.groupable() == {"sheet_music", "chord_sheet"}
+
+
+def test_photos_are_chord_sheets():
+    assert route("photo", PNG) == route("photo", PNG, image_mode="chord_sheet") == "chord_sheet"
+    assert "chord_sheet" in registry.groupable()
 
 
 # Source pages
@@ -136,7 +148,7 @@ def test_page_image_through_a_pipeline_hook(library, found_a_love, monkeypatch):
 # Health
 
 
-def test_health_tools(client, monkeypatch):
+def test_health_tools(client, monkeypatch, without_photos):
     tools = client.get("/api/v1/health").json()["tools"]
     assert tools["photo_reading"] is tools["sheet_music"] is tools["audio"] is False
     assert tools["links"] is False
@@ -258,3 +270,28 @@ def test_page_image_of_an_unknown_pipeline(library, found_a_love):
     song = library.add_song(found_a_love, pipeline="not_in_this_build", inputs=[ref_])
     with pytest.raises(NotFound, match="no source pages"):
         service.page_image(library, song.id, 0)
+
+
+def test_photo_group_with_staves_on_one_page(library, data_dir, monkeypatch):
+    """Through the real photo reader: one page claimed as sheet music makes the whole group
+    sheet music; with nothing claimed the group is one chord sheet song."""
+    from soundselect.jobs import run_job
+
+    photos = data_dir / "photos"
+    page1, page2 = ((photos / n).read_bytes() for n in ("page1.png", "page2.png"))
+    files = [("page1.png", page1), ("page2.png", page2)]
+    options = ImportOptions(groups=[[0, 1]])
+
+    spec = fake_spec("sheet_music", claims=lambda data: data == page2)
+    monkeypatch.setitem(registry.PIPELINES, "sheet_music", spec)
+    [job] = service.start_import(library, files=files, options=options).jobs
+    assert job.kind == "sheet_music" and [r.name for r in job.inputs] == ["page1.png", "page2.png"]
+
+    monkeypatch.setitem(registry.PIPELINES, "sheet_music", fake_spec("sheet_music"))
+    [job] = service.start_import(library, files=files, options=options).jobs
+    assert job.kind == "chord_sheet" and len(job.inputs) == 2
+    run_job(library, job.id)
+    done = library.job(job.id)
+    assert done.status == "done", done.error
+    song = service.stored_song(library, done.song_id)
+    assert song.identity.source_name == "page1.png + page2.png"
