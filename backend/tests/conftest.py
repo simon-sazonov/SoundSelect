@@ -1,3 +1,4 @@
+import os
 from functools import cache
 from pathlib import Path
 
@@ -7,6 +8,9 @@ from soundselect.core.song import Song
 from soundselect.pipeline.chord_sheet import analyze_sheet
 
 DATA = Path(__file__).parent / "data"
+
+# These tests read the simple screens; test_frontend.py serves the front end in frontend/.
+os.environ.setdefault("SOUNDSELECT_FRONTEND", "off")
 
 
 @cache

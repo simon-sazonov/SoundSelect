@@ -20,6 +20,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
 COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --all-extras --no-dev --no-install-project
 COPY backend backend
+COPY frontend frontend
 RUN uv sync --locked --all-extras --no-dev
 
 VOLUME /data

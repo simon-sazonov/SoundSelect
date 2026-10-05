@@ -1,17 +1,21 @@
-"""The simple screens the back end serves, so SoundSelect can be used day to day before the
-real front end is built: import, batch progress, the song page with fixes, library, settings.
+"""The screens the back end serves.
 
-They are plain pages with a little JavaScript that calls the same API as the front end will.
+The front end in frontend/ (plain files, no build step) is served when it is there: every screen
+address gets its index.html, its files are under /app, and /sw.js and /music-font.css sit at the
+top so they can cover every screen. Without it, the simple screens below are served: import,
+batch progress, the song page with fixes, library, settings.
 """
 
 from __future__ import annotations
 
+import os
 from functools import cache
+from pathlib import Path
 from typing import Annotated
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, FastAPI, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from jinja2 import Environment, PackageLoader, select_autoescape
 from markupsafe import Markup
 
@@ -218,5 +222,57 @@ def settings_page(request: Request) -> HTMLResponse:
     )
 
 
+def frontend_dir() -> Path | None:
+    """The front end's files (frontend/ beside backend/), or the folder SOUNDSELECT_FRONTEND
+    names; None when there is none or SOUNDSELECT_FRONTEND is "off", and the simple screens
+    above are served instead."""
+    configured = os.environ.get("SOUNDSELECT_FRONTEND")
+    if configured == "off":
+        return None
+    folder = Path(configured) if configured else Path(__file__).resolve().parents[3] / "frontend"
+    return folder if (folder / "index.html").is_file() else None
+
+
+# the addresses the front end answers itself; each gets the same page
+FRONTEND_PAGES = [
+    "/",
+    "/import",
+    "/library",
+    "/settings",
+    "/batches/{_id}",
+    "/songs/{_id}",
+    "/songs/{_id}/stand",
+]
+
+
+def _add_frontend(app: FastAPI, folder: Path) -> None:
+    from fastapi.staticfiles import StaticFiles
+
+    page = folder / "index.html"
+    no_cache = {"Cache-Control": "no-cache"}
+
+    def index() -> FileResponse:
+        return FileResponse(page, headers=no_cache)
+
+    for path in FRONTEND_PAGES:
+        app.add_api_route(path, index, methods=["GET"], include_in_schema=False)
+
+    @app.get("/sw.js", include_in_schema=False)
+    def service_worker() -> FileResponse:
+        return FileResponse(folder / "sw.js", media_type="text/javascript", headers=no_cache)
+
+    @app.get("/music-font.css", include_in_schema=False)
+    def music_font() -> Response:
+        from ..render.staff import music_font_css
+
+        return Response(music_font_css(), media_type="text/css", headers=no_cache)
+
+    app.mount("/app", StaticFiles(directory=folder), name="frontend")
+
+
 def add_screens(app: FastAPI) -> None:
-    app.include_router(router)
+    folder = frontend_dir()
+    if folder is not None:
+        _add_frontend(app, folder)
+    else:
+        app.include_router(router)
