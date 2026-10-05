@@ -170,5 +170,5 @@ music (a system).
 - `GET /health`: whether the app is up, how many songs and waiting jobs there are, and which
   tools are installed: `pdf_output` (false without Pango), `pdf_reading`, `photo_reading`,
   `sheet_music` (screenshots and videos), `audio` (songs from audio) and `links` (yt-dlp is
-  installed and something reads links).
+  installed, something reads links, and Deno, which YouTube needs, is on the app's `PATH`).
 - `GET /search?q=`: finding a song on YouTube by name, which comes with the song tool (501 now).

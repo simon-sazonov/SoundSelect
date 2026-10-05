@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#15171C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SoundSelect">
+<title>SoundSelect</title>
+<link rel="manifest" href="/app/manifest.webmanifest">
+<link rel="icon" href="/app/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/app/icon-180.png">
+<link rel="stylesheet" href="/music-font.css">
+<link rel="stylesheet" href="/app/styles.css">
+<script>
+  try { const t = localStorage.getItem("ss-theme"); if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; } catch {}
+</script>
+<script type="module" src="/app/app.js"></script>
+</head>
+<body>
+<div class="shell">
+  <nav class="nav" aria-label="Main">
+    <a class="brand" href="/">
+      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><circle cx="9" cy="20" r="5" fill="#F2B84B"/><path d="M14 20V5l9 3" stroke="#F2B84B" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      SoundSelect
+    </a>
+    <a class="item" data-nav="import" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New import</a>
+    <a class="item" data-nav="library" href="/library"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 6l4 1-3 13-4-1z"/></svg>Library</a>
+    <a class="item" data-nav="batch" href="/" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg><span>Last import</span></a>
+    <a class="item" data-nav="song" href="/" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="17" r="3"/><path d="M10 17V4l9 3"/></svg><span>Song</span></a>
+    <a class="item" data-nav="settings" href="/settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>Settings</a>
+    <div class="grow"></div>
+    <div class="ver" id="ver"></div>
+  </nav>
+  <main id="main" tabindex="-1"><div class="loading">Loading…</div></main>
+</div>
+<nav class="tabbar" aria-label="Main">
+  <a data-nav="import" href="/"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Import</a>
+  <a data-nav="library" href="/library"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 5h4v14H4zM10 5h4v14h-4zM16 6l4 1-3 13-4-1z"/></svg>Library</a>
+  <a data-nav="settings" href="/settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Settings</a>
+</nav>
+<div id="stand-root"></div>
+</body>
+</html>
