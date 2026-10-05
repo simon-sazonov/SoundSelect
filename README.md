@@ -41,6 +41,10 @@ uv run soundselect serve          # then open http://127.0.0.1:8000
 `--all-extras` also installs the tools for sheet music (`sheetmusic`: homr, music21), for
 links (`links`: yt-dlp) and for audio files (`audio`: PyAV, for the song tool). Without them the app still runs and says what each part needs.
 
+YouTube links also need [Deno](https://deno.com), the JavaScript runtime yt-dlp uses for
+YouTube: `curl -fsSL https://deno.land/install.sh | sh` installs it into `~/.deno` with no admin
+rights. Start the app with `~/.deno/bin` on its `PATH`; Settings shows Links as on once it finds it.
+
 Your songs are kept in `~/.soundselect` (set `SOUNDSELECT_HOME` or `--home` to use another
 folder). The app answers only this computer. Stop it with Ctrl+C; anything still being read
 carries on the next time it starts.

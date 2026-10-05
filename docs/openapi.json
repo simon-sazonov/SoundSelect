@@ -3857,7 +3857,8 @@
           },
           "links": {
             "type": "boolean",
-            "title": "Links"
+            "title": "Links",
+            "description": "Video links: yt-dlp, and Deno, the JavaScript runtime it needs for YouTube."
           }
         },
         "additionalProperties": false,

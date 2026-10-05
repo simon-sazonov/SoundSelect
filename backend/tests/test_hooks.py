@@ -1,6 +1,7 @@
 """Hooks for the next phases: pipeline and page registries, import routing, the written melody."""
 
 import dataclasses
+import shutil
 
 import pytest
 
@@ -170,8 +171,11 @@ def test_health_tools(client, monkeypatch, without_photos, without_sheet_music, 
     assert tools["sheet_music"] is True and tools["audio"] is False
 
     monkeypatch.setattr(importlib.util, "find_spec", find_spec)
+    monkeypatch.setattr(shutil, "which", lambda name: f"/bin/{name}")
     expected = find_spec("yt_dlp") is not None  # the downloader is built; yt-dlp is an extra
     assert client.get("/api/v1/health").json()["tools"]["links"] is expected
+    monkeypatch.setattr(shutil, "which", lambda name: None)  # no Deno for YouTube
+    assert client.get("/api/v1/health").json()["tools"]["links"] is False
 
 
 # Planning jobs

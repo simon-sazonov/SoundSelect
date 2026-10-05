@@ -10,6 +10,7 @@ import asyncio
 import importlib.util
 import json
 import re
+import shutil
 from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 from urllib.parse import quote
@@ -587,7 +588,9 @@ class Tools(Model):
     photo_reading: bool
     sheet_music: bool
     audio: bool
-    links: bool
+    links: bool = Field(
+        description="Video links: yt-dlp, and Deno, the JavaScript runtime it needs for YouTube."
+    )
 
 
 class Health(Model):
@@ -615,9 +618,11 @@ def health(lib: Lib, queue: Queue) -> Health:
             photo_reading="photo" in READERS,
             sheet_music=sheet_music,
             audio=audio,
-            # the link downloader (soundselect.links) comes with the sheet music tool
+            # the link downloader (soundselect.links) comes with the sheet music tool; YouTube
+            # links fail without Deno on the app's PATH, so links are off without it
             links=importlib.util.find_spec("yt_dlp") is not None
             and importlib.util.find_spec("soundselect.links") is not None
+            and shutil.which("deno") is not None
             and (sheet_music or audio),
         ),
     )
