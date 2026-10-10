@@ -13,5 +13,9 @@ then http://127.0.0.1:8000). Every screen address gets `index.html`; the files a
 - `music.js`: note names (Russian, letters, both, solfège, German), key and chord text, the staff
   for scales and chord notes (drawn here so it reflows and redraws at once when names change),
   and playback at concert pitch.
+- `art.js`: the pencil drawings (the sax, the S monogram, the icons) and the one SVG filter that
+  roughens them. Staves, notes and chords never go through it.
+- `fonts/`: Cormorant Garamond (headings), Jost (text) and Caveat (margin notes), carried with
+  the app under the SIL Open Font License; `fonts.css` declares them.
 - `api.js`: calls to `/api/v1` (docs/api.md).
 - The melody and sheet music come drawn by the server's Verovio (`score?format=svg`).
