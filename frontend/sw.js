@@ -2,9 +2,10 @@
 // without a connection. The app files come from the cache first (refreshed in the background);
 // songs and drawings come from the app first, and from the cache when it can't be reached.
 
-const SHELL = "ss-shell-v1";
+const SHELL = "ss-shell-v2";
 const SONGS = "ss-songs-v1";
-const FILES = ["/", "/app/app.js", "/app/api.js", "/app/music.js", "/app/styles.css", "/music-font.css", "/app/manifest.webmanifest", "/app/icon.svg"];
+const FILES = ["/", "/app/app.js", "/app/api.js", "/app/music.js", "/app/art.js", "/app/styles.css", "/music-font.css", "/app/manifest.webmanifest", "/app/icon.svg",
+  "/app/fonts/fonts.css", "/app/fonts/jost-latin.woff2", "/app/fonts/cormorant-latin.woff2", "/app/fonts/caveat-latin.woff2", "/app/fonts/jost-cyrillic.woff2", "/app/fonts/cormorant-cyrillic.woff2"];
 const PAGES = /^\/(import|library|settings|batches\/[\w-]+|songs\/[\w-]+(\/stand)?)?$/;
 
 self.addEventListener("install", (e) => {
