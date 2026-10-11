@@ -44,7 +44,10 @@ def test_every_screen_is_the_app(app_client, path):
     ],
 )
 def test_files(app_client, path):
-    assert app_client.get(path).status_code == 200
+    res = app_client.get(path)
+    assert res.status_code == 200
+    # an updated app must not be hidden by the browser's copy of the old files
+    assert res.headers["cache-control"] == "no-cache"
 
 
 def test_music_font(app_client):

@@ -1,15 +1,16 @@
 // Loads the app from the device after the first visit, and keeps the songs you opened for use
-// without a connection. The app files come from the cache first (refreshed in the background);
-// songs and drawings come from the app first, and from the cache when it can't be reached.
+// without a connection. Everything comes from the app first, and from the cache when it can't be
+// reached, so a new version of the app shows on the next load. The app files are asked for past
+// the browser's own cache, which would otherwise hand back the old ones.
 
-const SHELL = "ss-shell-v2";
+const SHELL = "ss-shell-v3";
 const SONGS = "ss-songs-v1";
 const FILES = ["/", "/app/app.js", "/app/api.js", "/app/music.js", "/app/art.js", "/app/styles.css", "/music-font.css", "/app/manifest.webmanifest", "/app/icon.svg",
   "/app/fonts/fonts.css", "/app/fonts/jost-latin.woff2", "/app/fonts/cormorant-latin.woff2", "/app/fonts/caveat-latin.woff2", "/app/fonts/jost-cyrillic.woff2", "/app/fonts/cormorant-cyrillic.woff2"];
 const PAGES = /^\/(import|library|settings|batches\/[\w-]+|songs\/[\w-]+(\/stand)?)?$/;
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(SHELL).then((c) => c.addAll(FILES.map((f) => new Request(f, { cache: "reload" })))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => ![SHELL, SONGS].includes(k)).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -26,11 +27,7 @@ self.addEventListener("fetch", (e) => {
     return;
   }
   if (url.pathname.startsWith("/app/") || url.pathname === "/music-font.css") {
-    e.respondWith(caches.open(SHELL).then(async (c) => {
-      const hit = await c.match(req);
-      const net = fetch(req).then((res) => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
-      return hit || net;
-    }));
+    e.respondWith(fresh(req, SHELL, undefined, { cache: "no-cache" }));
     return;
   }
   // songs, their drawings and settings: the app first, the copy when offline
@@ -39,10 +36,10 @@ self.addEventListener("fetch", (e) => {
   }
 });
 
-async function fresh(req, cacheName, key) {
+async function fresh(req, cacheName, key, how) {
   const cache = await caches.open(cacheName);
   try {
-    const res = await fetch(req);
+    const res = await fetch(req, how);
     if (res.ok) cache.put(key ?? req, res.clone());
     return res;
   } catch {

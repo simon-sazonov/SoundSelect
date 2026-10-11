@@ -267,7 +267,14 @@ def _add_frontend(app: FastAPI, folder: Path) -> None:
 
         return Response(music_font_css(), media_type="text/css", headers=no_cache)
 
-    app.mount("/app", StaticFiles(directory=folder), name="frontend")
+    class Fresh(StaticFiles):
+        # asked for again each time, so an updated app is not hidden by the browser's copy
+        async def get_response(self, path, scope):  # type: ignore[no-untyped-def]
+            res = await super().get_response(path, scope)
+            res.headers.update(no_cache)
+            return res
+
+    app.mount("/app", Fresh(directory=folder), name="frontend")
 
 
 def add_screens(app: FastAPI) -> None:
