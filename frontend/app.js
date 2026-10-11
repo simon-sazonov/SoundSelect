@@ -3,6 +3,7 @@
 
 import * as api from "./api.js";
 import * as M from "./music.js";
+import { start as startArt } from "./art.js";
 
 const main = document.getElementById("main");
 const standRoot = document.getElementById("stand-root");
@@ -71,6 +72,7 @@ function remember(kind, href, label) {
 
 // ---------- import ----------
 
+const TOOL_ICON = { sheet: "chords", song: "wave", music: "pages" };
 const TOOLS = [
   ["sheet", "Chord sheets", "Text, PDF or photos. Get the key, the chords for your instrument and the scales to play."],
   ["song", "Song", "A YouTube link or an audio file. Get the melody on the staff, written for you."],
@@ -94,12 +96,13 @@ async function importView() {
 
   function render() {
     const t = st.tool;
-    main.innerHTML = `<div class="page" style="max-width:1040px">
-      <div><h1 style="font-size:38px;letter-spacing:-0.02em">What are we reading today?</h1>
+    main.innerHTML = `<div class="page" style="max-width:1040px;position:relative">
+      <div class="margin-sax" data-art="margin"></div>
+      <div class="lead"><h1 style="font-size:38px;letter-spacing:-0.02em">What are we reading today?</h1>
       <p class="muted" style="margin:6px 0 0">Everything comes back written for ${esc(inst?.name ?? "your instrument")}, with the key's pentatonic first.</p></div>
       <div class="tools" role="radiogroup" aria-label="Tool">${TOOLS.map(([id, name, d]) => `
         <button type="button" role="radio" class="tool ${id === t ? "on" : ""}" aria-checked="${id === t}" data-tool="${id}">
-          <span class="t">${name}</span><span class="d">${d}</span></button>`).join("")}</div>
+          <span data-ic="${TOOL_ICON[id]}" data-s="34"></span><span class="t">${name}</span><span class="d">${d}</span></button>`).join("")}</div>
       <form class="card" id="imp" style="display:flex;flex-direction:column;gap:18px">
         ${missing[t] ? `<div class="notice warn">${esc(missing[t])}</div>` : ""}
         ${t === "song" ? `<div><label class="lbl" for="links">YouTube or YouTube Music link</label>
@@ -108,6 +111,7 @@ async function importView() {
             <input class="field" id="links" type="url" inputmode="url" placeholder="https://youtube.com/watch?v=…" style="min-height:56px;font-size:17px"></div>` : ""}
         <div class="row" style="align-items:stretch;gap:18px">
           <div class="drop" id="drop" style="flex:1 1 320px">
+            <span data-ic="${t === "song" ? "wave" : "camera"}" data-s="40"></span>
             <b style="font-size:18px">${t === "sheet" ? "Drop photos, PDFs or text files" : t === "song" ? "Or drop an audio file" : "Or drop screenshots or a video"}</b>
             <span class="muted">${t === "sheet" ? "Seven photos of seven songs is fine: each comes back as its own song." : t === "song" ? "MP3, M4A, WAV and the like." : "In any order. Overlapping views are matched and joined into full pages."}</span>
             <label class="btn" style="cursor:pointer">Choose files<input type="file" id="pick" multiple accept="${accept[t]}" class="sr"></label>
@@ -324,7 +328,7 @@ async function songView(id) {
           <div class="muted">${esc([song.identity.artist, song.identity.source_name, song.timing?.time_signature].filter(Boolean).join(" · "))}</div>
         </div>
         <div class="row" style="gap:8px">
-          <a class="btn" href="/songs/${song.id}/stand">Music stand</a>
+          <a class="btn" href="/songs/${song.id}/stand"><span data-ic="stand" data-s="18"></span>Music stand</a>
           ${hasPages ? `<button class="btn" type="button" data-act="compare" aria-pressed="${st.compare}">${st.compare ? "Hide the original" : "Compare with the original"}</button>` : ""}
           <button class="btn" type="button" data-act="fix">Fix</button>
           ${sheet ? `<a class="btn" href="${api.url(`/songs/${song.id}/export`, { format: "clean" })}" download>Clean copy</a>` : ""}
@@ -475,7 +479,7 @@ function hero(song, m, names) {
       <div><button class="btn" type="button" data-act="fix">Wrong key? Fix it</button></div>
     </div>
     ${h ? `<div class="scalecol">
-      <div class="row spread"><span class="kick">Play this first</span><button class="btn small" type="button" data-play="headline">Play</button></div>
+      <div class="row spread"><span class="kick">Play this first</span><button class="btn small play" type="button" data-play="headline"><span data-ic="play" data-s="14"></span>Play</button></div>
       <div style="font-size:24px;font-weight:700">${esc(M.scaleLabel(h.kind, h[m.side].root, names))}</div>
       <div class="box">${M.staffSvg(h[m.side].staff, { fifths: m.fifths, names, label: "The key's pentatonic" })}</div>
       <div class="sub" style="font-size:14px">Works over the whole song.</div>
@@ -669,9 +673,9 @@ async function standView(id) {
   main.innerHTML = "";
   standRoot.innerHTML = `<div class="stand" id="stand" tabindex="-1">
     <header><a href="/songs/${id}">Done</a><div style="flex:1;text-align:center;font-weight:600">${esc(song.identity.title || "Song")} · ${esc(M.keyText(m.key, names, { short: true }))}</div>
-      <span id="awake" style="font-size:14px;color:#AEB3BD"></span></header>
+      <span id="awake" class="muted" style="font-size:14px"></span></header>
     <div class="body">
-      ${h ? `<div><div class="kick" style="color:#F2B84B">${esc(M.scaleLabel(h.kind, h[m.side].root, names))}</div>${M.staffSvg(h[m.side].staff, { fifths: m.fifths, names })}</div>` : ""}
+      ${h ? `<div><div class="kick brass">${esc(M.scaleLabel(h.kind, h[m.side].root, names))}</div>${M.staffSvg(h[m.side].staff, { fifths: m.fifths, names })}</div>` : ""}
       ${song.melody?.notes?.length && !song.sheet_music ? `<div class="drawn" data-drawn="melody"></div>` : ""}
       ${song.sheet_music ? `<div class="drawn" data-drawn="sheet"></div>` : ""}
       ${song.form.length ? `<div>${chartHtml(song, m, names, { line: null }, { stand: true })}</div>` : ""}
@@ -814,3 +818,4 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 route();
+startArt();
