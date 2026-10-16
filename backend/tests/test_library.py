@@ -157,6 +157,17 @@ def test_old_songs_named_by_file_get_their_first_line(tmp_path):
     assert [r.title for r in lib.list_songs(sort="title")[0]][-1] == "Some words here"
 
 
+def test_songs_named_by_a_noisy_first_line_are_named_again(tmp_path):
+    lib = Library(tmp_path)
+    song = analyze_sheet("Am   F\n6 7\nAm   F\nЖатва Em C\n")
+    song.identity.title = "6 7"  # what version 2 named it
+    song_id = lib.add_song(song, pipeline="chord_sheet", inputs=[]).id
+    with sqlite3.connect(lib.db) as conn:
+        conn.execute("PRAGMA user_version = 2")
+    lib = Library(tmp_path)
+    assert lib.song_row(song_id).title == "Жатва"
+
+
 def test_song_saved_by_another_version(library, data_dir):
     song = library.add_song(
         analyze_sheet(data_dir / "found_a_love.txt"), pipeline="chord_sheet", inputs=[]

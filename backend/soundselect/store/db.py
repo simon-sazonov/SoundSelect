@@ -6,16 +6,30 @@ runs in WAL mode, so reading never waits for a job that is writing.
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path, PurePath
+from typing import Any
+
+
+def _first_lyric_line(song: Any) -> str | None:
+    """The title version 2 gave: the first lyric line as it was read, noise and all."""
+    words = next((t for s in song.form for line in s.lines if (t := line.lyrics.strip())), "")
+    words = re.sub(r"\s+", " ", words).rstrip(" ,;:-–—")
+    if len(words) > 60:
+        cut = words[:59]
+        cut = cut.rsplit(" ", 1)[0] if " " in cut else cut
+        words = cut.rstrip(" ,;:-–—") + "…"
+    return words or None
 
 
 def _name_untitled_sheets(conn: sqlite3.Connection) -> None:
-    """Chord sheets saved under their file name get their first line of words as the title,
-    as new imports do; a title the player typed is kept."""
+    """Chord sheets saved under their file name (or under the rawer first line version 2 gave)
+    get their first line of words as the title, as new imports do; a title the player typed
+    is kept."""
     from ..core.song import Corrections, Song
     from ..sheets.analyze import first_line_title
 
@@ -30,10 +44,10 @@ def _name_untitled_sheets(conn: sqlite3.Connection) -> None:
         except ValueError:
             continue  # saved in a shape this version can't load; it is made again when opened
         stem = PurePath(row["source_name"]).stem if row["source_name"] else None
-        if typed or row["title"] not in (None, stem):
+        if typed or row["title"] not in (None, stem, _first_lyric_line(song)):
             continue
-        title = first_line_title(song.form)
-        if not title:
+        title = first_line_title(song.form) or stem
+        if not title or title == row["title"]:
             continue
         song.identity.title = title
         conn.execute(
@@ -113,6 +127,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     );
     """,
     _name_untitled_sheets,
+    _name_untitled_sheets,  # again, now passing over lines that are noise
 ]
 
 

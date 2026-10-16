@@ -35,9 +35,11 @@ TITLE_LENGTH = 60
 
 
 def first_line_title(form: list[Section]) -> str | None:
-    """A name for a sheet with no title: its first line of words, shortened at a word."""
-    words = next((line.lyrics.strip() for s in form for line in s.lines if line.lyrics.strip()), "")
-    words = re.sub(r"\s+", " ", words).rstrip(" ,;:-–—")
+    """A name for a sheet with no title: its first line of words, shortened at a word.
+
+    Lines a photo reads as noise (page numbers, stray marks) are passed over, and chord names
+    left at the end of a line are dropped."""
+    words = next((t for s in form for line in s.lines if (t := title_words(line.lyrics))), "")
     if not words:
         return None
     if len(words) <= TITLE_LENGTH:
@@ -45,7 +47,22 @@ def first_line_title(form: list[Section]) -> str | None:
     cut = words[: TITLE_LENGTH - 1]
     if " " in cut:
         cut = cut.rsplit(" ", 1)[0]
-    return cut.rstrip(" ,;:-–—") + "…"
+    return cut.rstrip(_TRAILING) + "…"
+
+
+_TRAILING = " ,;:-–—"
+
+
+def title_words(lyrics: str) -> str:
+    """The words of a lyric line fit for a title, or "" when it is mostly not words."""
+    tokens = lyrics.split()
+    while tokens and parse_chord(tokens[-1].strip(_TRAILING)) is not None:
+        tokens.pop()  # chord names read into the end of the line
+    text = re.sub(r"^[\W\d_]+", "", " ".join(tokens)).rstrip(_TRAILING)
+    letters = sum(ch.isalpha() for ch in text)
+    if letters < 3 or letters < 0.6 * len(text.replace(" ", "")):
+        return ""
+    return text
 
 
 def sheet_key(sheet: ParsedSheet, corrected: str | None = None) -> KeyResult | None:
