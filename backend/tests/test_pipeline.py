@@ -88,6 +88,8 @@ def test_title_words_pass_over_noise():
     assert title_words("Жатва Em C") == "Жатва"
     assert title_words("Em C G") == ""
     assert title_words("I am the one,") == "I am the one"
+    assert title_words("БЛАГОСЛОВИТЬ A(C) Куплет: ТЕБЕЙ D ТРИМАЄ") == ""
+    assert title_words("A day in the life") == "A day in the life"
 
 
 def test_same_contents_under_another_name_is_read_again(tmp_path):

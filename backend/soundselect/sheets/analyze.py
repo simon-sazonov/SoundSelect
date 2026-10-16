@@ -54,15 +54,27 @@ _TRAILING = " ,;:-–—"
 
 
 def title_words(lyrics: str) -> str:
-    """The words of a lyric line fit for a title, or "" when it is mostly not words."""
+    """The words of a lyric line fit for a title, or "" when it is mostly not words, or has
+    chord names or a section label read into it."""
     tokens = lyrics.split()
-    while tokens and parse_chord(tokens[-1].strip(_TRAILING)) is not None:
+    while tokens and _is_chord(tokens[-1].strip(_TRAILING)):
         tokens.pop()  # chord names read into the end of the line
+    for i, token in enumerate(tokens):
+        if (_is_chord(token) and not (i == 0 and token == "A")) or (
+            token.endswith(":") and i < len(tokens) - 1
+        ):
+            return ""  # chords or a section label mixed into the words
     text = re.sub(r"^[\W\d_]+", "", " ".join(tokens)).rstrip(_TRAILING)
     letters = sum(ch.isalpha() for ch in text)
     if letters < 3 or letters < 0.6 * len(text.replace(" ", "")):
         return ""
     return text
+
+
+def _is_chord(token: str) -> bool:
+    """A chord name, alone or with others in brackets: 'D', 'A(C)', '|G'."""
+    parts = [p for p in re.split(r"[()\[\]|]", token) if p]
+    return bool(parts) and all(parse_chord(p) is not None for p in parts)
 
 
 def sheet_key(sheet: ParsedSheet, corrected: str | None = None) -> KeyResult | None:

@@ -15,19 +15,14 @@ from pathlib import Path, PurePath
 from typing import Any
 
 
-def _first_lyric_line(song: Any) -> str | None:
-    """The title version 2 gave: the first lyric line as it was read, noise and all."""
-    words = next((t for s in song.form for line in s.lines if (t := line.lyrics.strip())), "")
-    words = re.sub(r"\s+", " ", words).rstrip(" ,;:-–—")
-    if len(words) > 60:
-        cut = words[:59]
-        cut = cut.rsplit(" ", 1)[0] if " " in cut else cut
-        words = cut.rstrip(" ,;:-–—") + "…"
-    return words or None
+def _from_lyrics(title: str, song: Any) -> bool:
+    """Whether a title was taken from one of the song's lyric lines (by an earlier version)."""
+    part = title.removesuffix("…")
+    return any(part in re.sub(r"\s+", " ", line.lyrics) for s in song.form for line in s.lines)
 
 
 def _name_untitled_sheets(conn: sqlite3.Connection) -> None:
-    """Chord sheets saved under their file name (or under the rawer first line version 2 gave)
+    """Chord sheets saved under their file name (or a lyric line an earlier version took)
     get their first line of words as the title, as new imports do; a title the player typed
     is kept."""
     from ..core.song import Corrections, Song
@@ -44,15 +39,16 @@ def _name_untitled_sheets(conn: sqlite3.Connection) -> None:
         except ValueError:
             continue  # saved in a shape this version can't load; it is made again when opened
         stem = PurePath(row["source_name"]).stem if row["source_name"] else None
-        if typed or row["title"] not in (None, stem, _first_lyric_line(song)):
+        title = row["title"]
+        if typed or not (title in (None, stem) or _from_lyrics(title, song)):
             continue
-        title = first_line_title(song.form) or stem
-        if not title or title == row["title"]:
+        new = first_line_title(song.form) or stem
+        if not new or new == title:
             continue
-        song.identity.title = title
+        song.identity.title = new
         conn.execute(
             "UPDATE songs SET title = ?, sort_title = ?, song = ? WHERE id = ?",
-            (title, title.casefold(), song.model_dump_json(), row["id"]),
+            (new, new.casefold(), song.model_dump_json(), row["id"]),
         )
 
 
@@ -128,6 +124,7 @@ MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     """,
     _name_untitled_sheets,
     _name_untitled_sheets,  # again, now passing over lines that are noise
+    _name_untitled_sheets,  # again, passing over lines with chords or labels mixed in
 ]
 
 

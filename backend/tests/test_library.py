@@ -168,6 +168,17 @@ def test_songs_named_by_a_noisy_first_line_are_named_again(tmp_path):
     assert lib.song_row(song_id).title == "Жатва"
 
 
+def test_songs_named_by_a_line_with_chords_in_it_are_named_again(tmp_path):
+    lib = Library(tmp_path)
+    song = analyze_sheet("Am   F\nСЛОВО A(C) Куплет: ТЕБЕ D ТРИМАЄ\nAm   F\nХто гріх перемагає\n")
+    song.identity.title = "СЛОВО A(C) Куплет: ТЕБЕ D ТРИМАЄ"  # what version 3 named it
+    song_id = lib.add_song(song, pipeline="chord_sheet", inputs=[]).id
+    with sqlite3.connect(lib.db) as conn:
+        conn.execute("PRAGMA user_version = 3")
+    lib = Library(tmp_path)
+    assert lib.song_row(song_id).title == "Хто гріх перемагає"
+
+
 def test_song_saved_by_another_version(library, data_dir):
     song = library.add_song(
         analyze_sheet(data_dir / "found_a_love.txt"), pipeline="chord_sheet", inputs=[]
