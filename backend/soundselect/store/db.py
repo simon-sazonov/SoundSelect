@@ -7,13 +7,44 @@ runs in WAL mode, so reading never waits for a job that is writing.
 from __future__ import annotations
 
 import sqlite3
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePath
+
+
+def _name_untitled_sheets(conn: sqlite3.Connection) -> None:
+    """Chord sheets saved under their file name get their first line of words as the title,
+    as new imports do; a title the player typed is kept."""
+    from ..core.song import Corrections, Song
+    from ..sheets.analyze import first_line_title
+
+    rows = conn.execute(
+        "SELECT id, title, source_name, corrections, song FROM songs WHERE pipeline = ?",
+        ("chord_sheet",),
+    ).fetchall()
+    for row in rows:
+        try:
+            song = Song.model_validate_json(row["song"])
+            typed = Corrections.model_validate_json(row["corrections"]).title
+        except ValueError:
+            continue  # saved in a shape this version can't load; it is made again when opened
+        stem = PurePath(row["source_name"]).stem if row["source_name"] else None
+        if typed or row["title"] not in (None, stem):
+            continue
+        title = first_line_title(song.form)
+        if not title:
+            continue
+        song.identity.title = title
+        conn.execute(
+            "UPDATE songs SET title = ?, sort_title = ?, song = ? WHERE id = ?",
+            (title, title.casefold(), song.model_dump_json(), row["id"]),
+        )
+
 
 # Each entry moves the database one version up; a new version only ever adds an entry.
-MIGRATIONS: list[str] = [
+# An entry is SQL, or a function for changes SQL can't make.
+MIGRATIONS: list[str | Callable[[sqlite3.Connection], None]] = [
     """
     CREATE TABLE inputs (
         sha TEXT PRIMARY KEY,
@@ -81,6 +112,7 @@ MIGRATIONS: list[str] = [
         value TEXT NOT NULL
     );
     """,
+    _name_untitled_sheets,
 ]
 
 
@@ -123,7 +155,11 @@ def migrate(path: Path) -> int:
                     f"The library at {path} was made by a newer SoundSelect; update SoundSelect."
                 )
             for number in range(version, len(MIGRATIONS)):
-                for statement in _statements(MIGRATIONS[number]):
+                step = MIGRATIONS[number]
+                if callable(step):
+                    step(conn)
+                    continue
+                for statement in _statements(step):
                     conn.execute(statement)
             conn.execute(f"PRAGMA user_version = {len(MIGRATIONS)}")
         return len(MIGRATIONS)
