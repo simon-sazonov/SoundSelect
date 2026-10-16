@@ -70,8 +70,30 @@ def test_pasted_text():
     assert [c.symbol for c in song.chords] == ["Am", "F", "C", "G"]
 
 
+def test_untitled_sheet_is_named_by_its_first_words():
+    sheet = b"Am   F\nSome words here,\nC   G\nmore words\n"
+    song = analyze_sheet(SheetInput(sheet, "IMG_0042.txt"))
+    assert song.identity.title == "Some words here"
+    words = "a long opening line that keeps going and going well past what fits in a title"
+    song = analyze_sheet(f"Am   F\n{words}\n")
+    assert song.identity.title == "a long opening line that keeps going and going well past…"
+
+
+def test_title_words_pass_over_noise():
+    from soundselect.sheets.analyze import title_words
+
+    assert title_words("1:115") == ""
+    assert title_words("6 7") == ""
+    assert title_words("€ Им'я, що рушить гори") == "Им'я, що рушить гори"
+    assert title_words("Жатва Em C") == "Жатва"
+    assert title_words("Em C G") == ""
+    assert title_words("I am the one,") == "I am the one"
+    assert title_words("БЛАГОСЛОВИТЬ A(C) Куплет: ТЕБЕЙ D ТРИМАЄ") == ""
+    assert title_words("A day in the life") == "A day in the life"
+
+
 def test_same_contents_under_another_name_is_read_again(tmp_path):
-    text = b"C   G   Am   F\nwords go here\n"
+    text = b"C   G   Am   F\nG   D   Em   C\n"  # no words, so each song is named by its file
     cache = MemoryCache()
     first = run_chord_sheet(SheetInput(text, "first.txt"), cache=cache)
     second = run_chord_sheet(SheetInput(text, "second.txt"), cache=cache)

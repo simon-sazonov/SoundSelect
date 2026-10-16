@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import PurePath
 
@@ -26,8 +27,54 @@ from ..core.view import chord_spelling
 from .model import ParsedSheet, SheetText
 
 KEY_VERSION = "1"
-SONG_VERSION = "2"
+SONG_VERSION = "3"
 UNCLEAR_KEY = 0.6
+
+
+TITLE_LENGTH = 60
+
+
+def first_line_title(form: list[Section]) -> str | None:
+    """A name for a sheet with no title: its first line of words, shortened at a word.
+
+    Lines a photo reads as noise (page numbers, stray marks) are passed over, and chord names
+    left at the end of a line are dropped."""
+    words = next((t for s in form for line in s.lines if (t := title_words(line.lyrics))), "")
+    if not words:
+        return None
+    if len(words) <= TITLE_LENGTH:
+        return words
+    cut = words[: TITLE_LENGTH - 1]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(_TRAILING) + "…"
+
+
+_TRAILING = " ,;:-–—"
+
+
+def title_words(lyrics: str) -> str:
+    """The words of a lyric line fit for a title, or "" when it is mostly not words, or has
+    chord names or a section label read into it."""
+    tokens = lyrics.split()
+    while tokens and _is_chord(tokens[-1].strip(_TRAILING)):
+        tokens.pop()  # chord names read into the end of the line
+    for i, token in enumerate(tokens):
+        if (_is_chord(token) and not (i == 0 and token == "A")) or (
+            token.endswith(":") and i < len(tokens) - 1
+        ):
+            return ""  # chords or a section label mixed into the words
+    text = re.sub(r"^[\W\d_]+", "", " ".join(tokens)).rstrip(_TRAILING)
+    letters = sum(ch.isalpha() for ch in text)
+    if letters < 3 or letters < 0.6 * len(text.replace(" ", "")):
+        return ""
+    return text
+
+
+def _is_chord(token: str) -> bool:
+    """A chord name, alone or with others in brackets: 'D', 'A(C)', '|G'."""
+    parts = [p for p in re.split(r"[()\[\]|]", token) if p]
+    return bool(parts) and all(parse_chord(p) is not None for p in parts)
 
 
 def sheet_key(sheet: ParsedSheet, corrected: str | None = None) -> KeyResult | None:
@@ -147,7 +194,7 @@ def build_song(
 
     fallback_title = PurePath(text.source_name).stem if text.source_name else None
     identity = Identity(
-        title=corrections.title or sheet.meta.title or fallback_title,
+        title=corrections.title or sheet.meta.title or first_line_title(form) or fallback_title,
         artist=corrections.artist or sheet.meta.artist,
         source=text.source,
         source_name=text.source_name,

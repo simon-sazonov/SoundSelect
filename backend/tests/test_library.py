@@ -130,6 +130,55 @@ def test_songs(library, data_dir):
     assert library.song_record(a.id) is None and library.song_row(a.id) is None
 
 
+def test_old_songs_named_by_file_get_their_first_line(tmp_path):
+    lib = Library(tmp_path)
+    sheet = "Am   F\nSome words here\n"
+    ref = InputRef(kind="photo", name="IMG_0042.jpg", sha="0" * 64, size=1)
+
+    def old(title, corrections=None):
+        song = analyze_sheet(sheet)
+        song.identity.title, song.identity.source_name = title, "IMG_0042.jpg"
+        if corrections:
+            song = song.model_copy(update={"corrections": corrections})
+        return lib.add_song(song, pipeline="chord_sheet", inputs=[ref]).id
+
+    by_file, typed, titled = (
+        old("IMG_0042"),
+        old("IMG_0042", Corrections(title="IMG_0042")),
+        old("Real Title"),
+    )
+    with sqlite3.connect(lib.db) as conn:
+        conn.execute("PRAGMA user_version = 1")
+    lib = Library(tmp_path)
+    assert lib.song_row(by_file).title == "Some words here"
+    assert lib.song_record(by_file).song.identity.title == "Some words here"
+    assert lib.song_row(typed).title == "IMG_0042"  # the player chose it
+    assert lib.song_row(titled).title == "Real Title"
+    assert [r.title for r in lib.list_songs(sort="title")[0]][-1] == "Some words here"
+
+
+def test_songs_named_by_a_noisy_first_line_are_named_again(tmp_path):
+    lib = Library(tmp_path)
+    song = analyze_sheet("Am   F\n6 7\nAm   F\nЖатва Em C\n")
+    song.identity.title = "6 7"  # what version 2 named it
+    song_id = lib.add_song(song, pipeline="chord_sheet", inputs=[]).id
+    with sqlite3.connect(lib.db) as conn:
+        conn.execute("PRAGMA user_version = 2")
+    lib = Library(tmp_path)
+    assert lib.song_row(song_id).title == "Жатва"
+
+
+def test_songs_named_by_a_line_with_chords_in_it_are_named_again(tmp_path):
+    lib = Library(tmp_path)
+    song = analyze_sheet("Am   F\nСЛОВО A(C) Куплет: ТЕБЕ D ТРИМАЄ\nAm   F\nХто гріх перемагає\n")
+    song.identity.title = "СЛОВО A(C) Куплет: ТЕБЕ D ТРИМАЄ"  # what version 3 named it
+    song_id = lib.add_song(song, pipeline="chord_sheet", inputs=[]).id
+    with sqlite3.connect(lib.db) as conn:
+        conn.execute("PRAGMA user_version = 3")
+    lib = Library(tmp_path)
+    assert lib.song_row(song_id).title == "Хто гріх перемагає"
+
+
 def test_song_saved_by_another_version(library, data_dir):
     song = library.add_song(
         analyze_sheet(data_dir / "found_a_love.txt"), pipeline="chord_sheet", inputs=[]
