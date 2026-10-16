@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from pathlib import PurePath
 
@@ -26,8 +27,25 @@ from ..core.view import chord_spelling
 from .model import ParsedSheet, SheetText
 
 KEY_VERSION = "1"
-SONG_VERSION = "2"
+SONG_VERSION = "3"
 UNCLEAR_KEY = 0.6
+
+
+TITLE_LENGTH = 60
+
+
+def first_line_title(form: list[Section]) -> str | None:
+    """A name for a sheet with no title: its first line of words, shortened at a word."""
+    words = next((line.lyrics.strip() for s in form for line in s.lines if line.lyrics.strip()), "")
+    words = re.sub(r"\s+", " ", words).rstrip(" ,;:-–—")
+    if not words:
+        return None
+    if len(words) <= TITLE_LENGTH:
+        return words
+    cut = words[: TITLE_LENGTH - 1]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:-–—") + "…"
 
 
 def sheet_key(sheet: ParsedSheet, corrected: str | None = None) -> KeyResult | None:
@@ -147,7 +165,7 @@ def build_song(
 
     fallback_title = PurePath(text.source_name).stem if text.source_name else None
     identity = Identity(
-        title=corrections.title or sheet.meta.title or fallback_title,
+        title=corrections.title or sheet.meta.title or first_line_title(form) or fallback_title,
         artist=corrections.artist or sheet.meta.artist,
         source=text.source,
         source_name=text.source_name,
